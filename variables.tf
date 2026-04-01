@@ -4,10 +4,15 @@ variable "rackspace_spot_token" {
   description = "Rackspace Spot API refresh token"
 }
 
+# --- Naming ---
+
 variable "cloudspace_name" {
-  type    = string
-  default = "apexalgo-spot"
+  type        = string
+  default     = ""
+  description = "Explicit cloudspace name. If empty, generates iad-<random-word>."
 }
+
+# --- Cluster ---
 
 variable "region" {
   type    = string
@@ -19,10 +24,12 @@ variable "kubernetes_version" {
   default = "1.31.1"
 }
 
+# --- Node Pool ---
+
 variable "server_class" {
   type        = string
   default     = "mh.vs1.large-iad"
-  description = "Rackspace Spot server class for worker nodes. Use spotctl serverclasses list to see options."
+  description = "Rackspace Spot server class. Use spotctl serverclasses list to see options."
 }
 
 variable "node_count" {
@@ -35,4 +42,46 @@ variable "bid_price" {
   type        = number
   default     = 0.001
   description = "Bid price per hour. Floor is 0.001. Set to p95 market price for stable instances."
+}
+
+# --- Headscale (mesh connectivity) ---
+
+variable "headscale_authkey" {
+  type        = string
+  sensitive   = true
+  description = "Headscale pre-auth key. Generate from hub: headscale preauthkeys create --user <user> --expiration 1h"
+}
+
+variable "headscale_url" {
+  type        = string
+  default     = "https://hs.ardenone.com"
+  description = "Headscale control server URL."
+}
+
+# --- Liqo (cluster federation) ---
+
+variable "liqo_version" {
+  type        = string
+  default     = "v1.1.2"
+  description = "Liqo Helm chart version. Must match ardenone-hub."
+}
+
+variable "liqo_hub_address" {
+  type        = string
+  default     = "100.64.0.1"
+  description = "Headscale IP of ardenone-hub's Liqo gateway."
+}
+
+# --- Bootstrap CRDs ---
+
+variable "traefik_version" {
+  type        = string
+  default     = "34.3.0"
+  description = "Traefik Helm chart version."
+}
+
+variable "cert_manager_version" {
+  type        = string
+  default     = "v1.17.1"
+  description = "cert-manager Helm chart version."
 }
