@@ -1,7 +1,7 @@
 # Bootstrap infrastructure onto a newly created spot cluster.
 # Order: Tailscale (mesh) → Liqo (federation) → Traefik (ingress) → cert-manager (TLS)
 
-# ---------- Tailscale (headscale mesh connectivity) ----------
+# ---------- Tailscale (mesh connectivity) ----------
 
 resource "kubernetes_namespace" "tailscale" {
   metadata {
@@ -16,11 +16,11 @@ resource "kubernetes_secret" "tailscale_auth" {
     namespace = kubernetes_namespace.tailscale.metadata[0].name
   }
   data = {
-    TS_AUTHKEY = var.headscale_authkey
+    TS_AUTHKEY = var.tailscale_authkey
   }
 }
 
-# DaemonSet — every node joins the headscale mesh
+# DaemonSet — every node joins the tailnet
 resource "kubernetes_daemon_set_v1" "tailscale" {
   metadata {
     name      = "tailscale"
@@ -50,10 +50,6 @@ resource "kubernetes_daemon_set_v1" "tailscale" {
                 key  = "TS_AUTHKEY"
               }
             }
-          }
-          env {
-            name  = "TS_LOGIN_SERVER"
-            value = var.headscale_url
           }
           env {
             name  = "TS_HOSTNAME"

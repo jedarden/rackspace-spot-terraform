@@ -44,18 +44,12 @@ variable "bid_price" {
   description = "Bid price per hour. Floor is 0.001. Set to p95 market price for stable instances."
 }
 
-# --- Headscale (mesh connectivity) ---
+# --- Tailscale (mesh connectivity) ---
 
-variable "headscale_authkey" {
+variable "tailscale_authkey" {
   type        = string
   sensitive   = true
-  description = "Headscale pre-auth key. Generate from hub: headscale preauthkeys create --user <user> --expiration 1h"
-}
-
-variable "headscale_url" {
-  type        = string
-  default     = "https://hs.ardenone.com"
-  description = "Headscale control server URL."
+  description = "Tailscale auth key. Generate from https://login.tailscale.com/admin/settings/keys or via `tailscale` CLI."
 }
 
 # --- Liqo (cluster federation) ---
@@ -68,8 +62,7 @@ variable "liqo_version" {
 
 variable "liqo_hub_address" {
   type        = string
-  default     = "100.64.0.1"
-  description = "Headscale IP of ardenone-hub's Liqo gateway."
+  description = "Tailscale IP of ardenone-hub's Liqo gateway."
 }
 
 # --- Bootstrap CRDs ---
