@@ -60,9 +60,10 @@ variable "liqo_version" {
   description = "Liqo Helm chart version. Must match ardenone-hub."
 }
 
-variable "liqo_hub_address" {
-  type        = string
-  description = "Tailscale IP of ardenone-hub's Liqo gateway."
+variable "skip_bootstrap" {
+  type        = bool
+  default     = false
+  description = "Skip bootstrap resources (Tailscale, Liqo, Traefik, cert-manager). Use when cluster is already bootstrapped or RBAC is restricted."
 }
 
 # --- Bootstrap CRDs ---
