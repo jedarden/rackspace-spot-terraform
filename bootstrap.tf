@@ -96,6 +96,10 @@ resource "helm_release" "liqo" {
   timeout          = 300
 
   values = [yamlencode({
+    ipam = {
+      podCIDR     = "10.42.0.0/16"
+      serviceCIDR = "10.43.0.0/16"
+    }
     gateway = {
       config = {
         addressOverride = local.cloudspace_name
