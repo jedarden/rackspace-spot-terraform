@@ -34,12 +34,6 @@ resource "kubernetes_daemon_set_v1" "tailscale" {
       }
       spec {
         host_network = true
-        toleration {
-          key      = "node-role"
-          operator = "Equal"
-          value    = "control"
-          effect   = "NoSchedule"
-        }
         container {
           name  = "tailscale"
           image = "tailscale/tailscale:latest"
@@ -139,20 +133,8 @@ resource "helm_release" "argo_workflows" {
         requests = { cpu = "100m", memory = "64Mi" }
         limits   = { cpu = "500m", memory = "256Mi" }
       }
-      tolerations = [{
-        key      = "node-role"
-        operator = "Equal"
-        value    = "control"
-        effect   = "NoSchedule"
-      }]
-      nodeSelector = {
-        "node-role" = "control"
-      }
       workflowDefaults = {
         spec = {
-          nodeSelector = {
-            "node-role" = "worker"
-          }
           podGC = {
             strategy = "OnPodCompletion"
           }
@@ -164,15 +146,6 @@ resource "helm_release" "argo_workflows" {
       resources = {
         requests = { cpu = "100m", memory = "64Mi" }
         limits   = { cpu = "500m", memory = "256Mi" }
-      }
-      tolerations = [{
-        key      = "node-role"
-        operator = "Equal"
-        value    = "control"
-        effect   = "NoSchedule"
-      }]
-      nodeSelector = {
-        "node-role" = "control"
       }
       extraArgs = [
         "--auth-mode=server",
