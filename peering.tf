@@ -32,7 +32,7 @@ resource "null_resource" "liqo_peer" {
       if command -v liqoctl &>/dev/null && [ -f /etc/rancher/k3s/k3s.yaml ]; then
         echo "==> Peering ${local.cloudspace_name} with ardenone-hub"
         KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \
-          --remote-kubeconfig "${local_sensitive_file.spot_kubeconfig.filename}" \
+          --remote-kubeconfig "${local_sensitive_file.spot_kubeconfig[0].filename}" \
           --server-service-type ClusterIP
       else
         echo "==> liqoctl or hub kubeconfig not available in this environment."
