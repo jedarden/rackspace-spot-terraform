@@ -1,0 +1,42 @@
+name: Build tftask image
+
+on:
+  push:
+    paths:
+      - 'tftask/**'
+  workflow_dispatch:
+    inputs:
+      terraform_version:
+        description: 'Terraform CLI version to include'
+        default: '1.9.8'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/terraform-operator-tftask
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set Terraform version
+        id: tf
+        run: echo "version=${{ inputs.terraform_version || '1.9.8' }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: tftask
+          push: true
+          build-args: TF_IMAGE=${{ steps.tf.outputs.version }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tf.outputs.version }}
