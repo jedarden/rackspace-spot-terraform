@@ -29,18 +29,21 @@ resource "null_resource" "liqo_peer" {
 
   provisioner "local-exec" {
     command = <<-EOT
-      if command -v liqoctl &>/dev/null && [ -f /etc/rancher/k3s/k3s.yaml ]; then
-        echo "==> Peering ${local.cloudspace_name} with ardenone-hub"
-        KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \
-          --remote-kubeconfig "${local_sensitive_file.spot_kubeconfig[0].filename}" \
-          --server-service-type ClusterIP
-      else
-        echo "==> liqoctl or hub kubeconfig not available in this environment."
-        echo "==> Complete peering manually from ardenone-hub:"
-        echo "    KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \\"
-        echo "      --remote-kubeconfig /tmp/${local.cloudspace_name}.kubeconfig \\"
-        echo "      --server-service-type ClusterIP"
+      if ! command -v liqoctl &>/dev/null; then
+        echo "==> liqoctl not found. Complete peering manually from ardenone-hub:"
+        echo "    liqoctl peer --remote-kubeconfig /tmp/${local.cloudspace_name}.kubeconfig --server-service-type ClusterIP"
+        exit 0
       fi
+
+      # Use k3s kubeconfig on the host, or fall back to in-cluster config
+      if [ -f /etc/rancher/k3s/k3s.yaml ]; then
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+      fi
+
+      echo "==> Peering ${local.cloudspace_name} with ardenone-hub"
+      liqoctl peer \
+        --remote-kubeconfig "${local_sensitive_file.spot_kubeconfig[0].filename}" \
+        --server-service-type ClusterIP
     EOT
   }
 

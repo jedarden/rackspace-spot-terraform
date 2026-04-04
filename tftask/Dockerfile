@@ -1,4 +1,5 @@
 ARG TF_IMAGE=1.9.8
+ARG LIQO_VERSION=v1.1.2
 FROM alpine/k8s:1.20.7 AS k8s
 
 FROM ubuntu:20.04 AS irsa-tokengen
@@ -22,7 +23,12 @@ COPY --from=irsa-tokengen /workdir/bin/irsa-tokengen bin/irsa-tokengen
 COPY --from=entrypoint /workdir/entrypoint bin/entrypoint
 
 FROM hashicorp/terraform:${TF_IMAGE}
-RUN apk add bash jq
+ARG LIQO_VERSION
+RUN apk add bash jq curl && \
+    curl --fail -LS "https://github.com/liqotech/liqo/releases/download/${LIQO_VERSION}/liqoctl-linux-amd64.tar.gz" | tar -xz && \
+    mv liqoctl /usr/local/bin/liqoctl && \
+    chmod +x /usr/local/bin/liqoctl && \
+    apk del curl
 COPY --from=bin /workdir/bin /usr/local/bin
 ENV USER_UID=2000 \
     USER_NAME=tfo-runner \
