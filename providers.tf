@@ -8,11 +8,11 @@ terraform {
     }
     helm = {
       source  = "hashicorp/helm"
-      version = ">= 2.0.0"
+      version = "~> 2.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = ">= 2.7.0"
+      version = "~> 2.0"
     }
     random = {
       source  = "hashicorp/random"
@@ -27,7 +27,7 @@ provider "spot" {
 
 # Providers targeting the newly created spot cluster
 provider "helm" {
-  kubernetes = {
+  kubernetes {
     host     = data.spot_kubeconfig.main.kubeconfigs[0].host
     token    = data.spot_kubeconfig.main.kubeconfigs[0].token
     insecure = data.spot_kubeconfig.main.kubeconfigs[0].insecure
