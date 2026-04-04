@@ -27,7 +27,7 @@ provider "spot" {
 
 # Providers targeting the newly created spot cluster
 provider "helm" {
-  kubernetes {
+  kubernetes = {
     host     = data.spot_kubeconfig.main.kubeconfigs[0].host
     token    = data.spot_kubeconfig.main.kubeconfigs[0].token
     insecure = data.spot_kubeconfig.main.kubeconfigs[0].insecure
