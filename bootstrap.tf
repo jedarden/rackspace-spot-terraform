@@ -4,6 +4,7 @@
 # ---------- Tailscale (mesh connectivity) ----------
 
 resource "kubernetes_namespace" "tailscale" {
+  count = var.skip_bootstrap ? 0 : 1
   metadata {
     name = "tailscale-system"
   }
@@ -11,9 +12,10 @@ resource "kubernetes_namespace" "tailscale" {
 }
 
 resource "kubernetes_secret" "tailscale_auth" {
+  count = var.skip_bootstrap ? 0 : 1
   metadata {
     name      = "tailscale-auth"
-    namespace = kubernetes_namespace.tailscale.metadata[0].name
+    namespace = kubernetes_namespace.tailscale[0].metadata[0].name
   }
   data = {
     TS_AUTHKEY = var.tailscale_authkey
@@ -22,9 +24,10 @@ resource "kubernetes_secret" "tailscale_auth" {
 
 # DaemonSet — every node joins the tailnet
 resource "kubernetes_daemon_set_v1" "tailscale" {
+  count = var.skip_bootstrap ? 0 : 1
   metadata {
     name      = "tailscale"
-    namespace = kubernetes_namespace.tailscale.metadata[0].name
+    namespace = kubernetes_namespace.tailscale[0].metadata[0].name
   }
   spec {
     selector {
@@ -46,7 +49,7 @@ resource "kubernetes_daemon_set_v1" "tailscale" {
             name = "TS_AUTHKEY"
             value_from {
               secret_key_ref {
-                name = kubernetes_secret.tailscale_auth.metadata[0].name
+                name = kubernetes_secret.tailscale_auth[0].metadata[0].name
                 key  = "TS_AUTHKEY"
               }
             }
@@ -104,6 +107,7 @@ resource "kubernetes_daemon_set_v1" "tailscale" {
 # ---------- Liqo (provider mode — offers resources to hub) ----------
 
 resource "helm_release" "liqo" {
+  count = var.skip_bootstrap ? 0 : 1
   name             = "liqo"
   repository       = "https://helm.liqo.io/"
   chart            = "liqo"
@@ -136,12 +140,13 @@ resource "helm_release" "liqo" {
     }
   })]
 
-  depends_on = [kubernetes_daemon_set_v1.tailscale]
+  depends_on = [kubernetes_daemon_set_v1.tailscale[0]]
 }
 
 # ---------- Traefik (ingress controller) ----------
 
 resource "helm_release" "traefik" {
+  count = var.skip_bootstrap ? 0 : 1
   name             = "traefik"
   repository       = "https://traefik.github.io/charts"
   chart            = "traefik"
@@ -170,6 +175,7 @@ resource "helm_release" "traefik" {
 # ---------- cert-manager (TLS certificates) ----------
 
 resource "helm_release" "cert_manager" {
+  count = var.skip_bootstrap ? 0 : 1
   name             = "cert-manager"
   repository       = "https://charts.jetstack.io"
   chart            = "cert-manager"
