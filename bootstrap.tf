@@ -52,8 +52,12 @@ resource "kubernetes_daemon_set_v1" "tailscale" {
             }
           }
           env {
-            name  = "TS_HOSTNAME"
-            value = local.cloudspace_name
+            name = "TS_HOSTNAME"
+            value_from {
+              field_ref {
+                field_path = "spec.nodeName"
+              }
+            }
           }
           env {
             name  = "TS_USERSPACE"
@@ -63,9 +67,17 @@ resource "kubernetes_daemon_set_v1" "tailscale" {
             name  = "TS_ACCEPT_DNS"
             value = "true"
           }
+          env {
+            name  = "TS_STATE_DIR"
+            value = "/var/lib/tailscale"
+          }
           volume_mount {
             name       = "dev-tun"
             mount_path = "/dev/net/tun"
+          }
+          volume_mount {
+            name       = "tailscale-state"
+            mount_path = "/var/lib/tailscale"
           }
           resources {
             requests = { cpu = "25m", memory = "64Mi" }
@@ -76,6 +88,12 @@ resource "kubernetes_daemon_set_v1" "tailscale" {
           name = "dev-tun"
           host_path {
             path = "/dev/net/tun"
+          }
+        }
+        volume {
+          name = "tailscale-state"
+          host_path {
+            path = "/var/lib/tailscale"
           }
         }
       }
