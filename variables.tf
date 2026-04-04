@@ -40,8 +40,8 @@ variable "node_count" {
 
 variable "bid_price" {
   type        = number
-  default     = 0.001
-  description = "Bid price per hour. Floor is 0.001. Set to p95 market price for stable instances."
+  default     = 0.015
+  description = "Bid price per hour. Minimum varies by server class (check spotctl). Default suits mh.vs1.large-iad."
 }
 
 # --- Tailscale (mesh connectivity) ---
