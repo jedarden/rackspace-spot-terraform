@@ -44,12 +44,23 @@ variable "bid_price" {
   description = "Bid price per hour. Minimum varies by server class (check spotctl). Default suits mh.vs1.large-iad."
 }
 
-# --- Tailscale (mesh connectivity) ---
+# --- Tailscale (mesh connectivity via OAuth) ---
 
-variable "tailscale_authkey" {
+variable "tailscale_oauth_client_id" {
   type        = string
   sensitive   = true
-  description = "Tailscale auth key. Generate from https://login.tailscale.com/admin/settings/keys or via `tailscale` CLI."
+  description = "Tailscale OAuth client ID. Create at https://login.tailscale.com/admin/settings/oauth"
+}
+
+variable "tailscale_oauth_client_secret" {
+  type        = string
+  sensitive   = true
+  description = "Tailscale OAuth client secret."
+}
+
+variable "tailscale_operator_version" {
+  type    = string
+  default = "1.94.2"
 }
 
 # --- Liqo (cluster federation) ---

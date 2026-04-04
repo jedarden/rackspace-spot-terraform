@@ -17,10 +17,12 @@ resource "local_sensitive_file" "spot_kubeconfig" {
   filename        = "/tmp/${local.cloudspace_name}.kubeconfig"
   file_permission = "0600"
 
-  depends_on = [helm_release.liqo]
+  count = var.skip_bootstrap ? 0 : 1
+  depends_on = [helm_release.liqo[0]]
 }
 
 resource "null_resource" "liqo_peer" {
+  count = var.skip_bootstrap ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
   }
@@ -43,7 +45,7 @@ resource "null_resource" "liqo_peer" {
   }
 
   depends_on = [
-    helm_release.liqo,
-    local_sensitive_file.spot_kubeconfig,
+    helm_release.liqo[0],
+    local_sensitive_file.spot_kubeconfig[0],
   ]
 }
