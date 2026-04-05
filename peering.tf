@@ -27,7 +27,7 @@ resource "null_resource" "liqo_peer" {
   count = var.skip_bootstrap ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
-    version    = "3"  # bump to force re-peering
+    version    = "4"  # bump to force re-peering
   }
 
   provisioner "local-exec" {
@@ -58,10 +58,26 @@ resource "null_resource" "liqo_peer" {
         sleep 10
       done
 
-      # Use k3s kubeconfig on the host for the hub side
+      # Switch to hub (in-cluster config) to read hub cluster ID
+      SPOT_KUBECONFIG="${local_sensitive_file.spot_kubeconfig.filename}"
       unset KUBECONFIG
       if [ -f /etc/rancher/k3s/k3s.yaml ]; then
         export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+      fi
+
+      # Pre-create the liqo tenant namespace on the spot cluster.
+      # liqoctl peer requires this when the spot kubeconfig user lacks
+      # cluster-scoped namespace creation rights.
+      # The tf-system SA has RBAC to read liqo-system configmaps on the hub.
+      HUB_CLUSTER_ID=$(kubectl get configmap liqo-clusterid-configmap \
+        -n liqo-system -o jsonpath='{.data.CLUSTER_ID}' 2>/dev/null || echo "")
+      if [ -n "$HUB_CLUSTER_ID" ]; then
+        echo "==> Pre-creating tenant namespace liqo-tenant-$HUB_CLUSTER_ID on ${local.cloudspace_name}"
+        kubectl --kubeconfig "$SPOT_KUBECONFIG" create namespace \
+          "liqo-tenant-$HUB_CLUSTER_ID" --dry-run=client -o yaml \
+          | kubectl --kubeconfig "$SPOT_KUBECONFIG" apply -f -
+      else
+        echo "==> WARNING: could not read hub cluster ID; tenant namespace pre-creation skipped"
       fi
 
       echo "==> Peering ${local.cloudspace_name} with ardenone-hub"
