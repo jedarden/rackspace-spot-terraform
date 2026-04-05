@@ -18,7 +18,8 @@ resource "local_sensitive_file" "spot_kubeconfig" {
 resource "null_resource" "install_tools" {
   count = var.skip_bootstrap ? 0 : 1
   triggers = {
-    cloudspace = local.cloudspace_name
+    # Always re-run: tools are in /tmp which doesn't persist across pods
+    always = timestamp()
   }
 
   provisioner "local-exec" {
