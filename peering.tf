@@ -16,6 +16,8 @@
 #
 #   KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \
 #     --remote-kubeconfig /tmp/<cluster>.kubeconfig \
+#     --namespace liqo-system \
+#     --remote-namespace liqo-system \
 #     --gw-server-service-type ClusterIP \
 #     --gw-server-service-location Consumer \
 #     --skip-confirm \
@@ -45,6 +47,8 @@ resource "null_resource" "liqo_peer" {
           echo "==> Liqo controller-manager not ready after 10m. Peering must be done manually."
           echo "    KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \\"
           echo "      --remote-kubeconfig /tmp/${local.cloudspace_name}.kubeconfig \\"
+          echo "      --namespace liqo-system \\"
+          echo "      --remote-namespace liqo-system \\"
           echo "      --gw-server-service-type ClusterIP \\"
           echo "      --gw-server-service-location Consumer \\"
           echo "      --skip-confirm \\"
@@ -63,6 +67,8 @@ resource "null_resource" "liqo_peer" {
       echo "==> Peering ${local.cloudspace_name} with ardenone-hub"
       liqoctl peer \
         --remote-kubeconfig "${local_sensitive_file.spot_kubeconfig.filename}" \
+        --namespace liqo-system \
+        --remote-namespace liqo-system \
         --gw-server-service-type ClusterIP \
         --gw-server-service-location Consumer \
         --skip-confirm \
@@ -72,6 +78,8 @@ resource "null_resource" "liqo_peer" {
         echo "==> Peering failed (likely RBAC). Complete manually from ardenone-hub:"
         echo "    KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \\"
         echo "      --remote-kubeconfig /tmp/${local.cloudspace_name}.kubeconfig \\"
+        echo "      --namespace liqo-system \\"
+        echo "      --remote-namespace liqo-system \\"
         echo "      --gw-server-service-type ClusterIP \\"
         echo "      --gw-server-service-location Consumer \\"
         echo "      --skip-confirm \\"
@@ -101,6 +109,8 @@ resource "null_resource" "liqo_peer" {
       echo "==> Unpeering ${self.triggers.cloudspace} from ardenone-hub"
       liqoctl unpeer \
         --remote-kubeconfig "$SPOT_KUBECONFIG" \
+        --namespace liqo-system \
+        --remote-namespace liqo-system \
         --skip-confirm \
       || true
     EOT
