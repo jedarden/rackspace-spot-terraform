@@ -32,7 +32,7 @@ resource "helm_release" "tailscale" {
   namespace        = "tailscale"
   create_namespace = false
   wait             = true
-  timeout          = 300
+  timeout          = 600
 
   values = [yamlencode({
     installCRDs = true
@@ -66,7 +66,7 @@ resource "helm_release" "liqo" {
   namespace        = "liqo-system"
   create_namespace = true
   wait             = true
-  timeout          = 300
+  timeout          = 600
 
   values = [yamlencode({
     ipam = {
@@ -105,7 +105,7 @@ resource "helm_release" "traefik" {
   namespace        = "traefik"
   create_namespace = true
   wait             = true
-  timeout          = 300
+  timeout          = 600
 
   values = [yamlencode({
     ports = {
@@ -134,7 +134,7 @@ resource "helm_release" "cert_manager" {
   namespace        = "cert-manager"
   create_namespace = true
   wait             = true
-  timeout          = 300
+  timeout          = 600
 
   set {
     name  = "crds.enabled"
