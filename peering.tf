@@ -9,7 +9,7 @@
 #
 #   KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \
 #     --remote-kubeconfig /tmp/<cluster>.kubeconfig \
-#     --server-service-type ClusterIP
+#     --gw-server-service-type ClusterIP
 
 resource "null_resource" "liqo_peer" {
   count = var.skip_bootstrap ? 0 : 1
@@ -34,7 +34,7 @@ resource "null_resource" "liqo_peer" {
           echo "==> Liqo controller-manager not ready after 10m. Peering must be done manually."
           echo "    KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \\"
           echo "      --remote-kubeconfig /tmp/${local.cloudspace_name}.kubeconfig \\"
-          echo "      --server-service-type ClusterIP"
+          echo "      --gw-server-service-type ClusterIP"
           exit 0
         fi
         sleep 10
@@ -49,13 +49,13 @@ resource "null_resource" "liqo_peer" {
       echo "==> Peering ${local.cloudspace_name} with ardenone-hub"
       liqoctl peer \
         --remote-kubeconfig "${local_sensitive_file.spot_kubeconfig.filename}" \
-        --server-service-type ClusterIP \
+        --gw-server-service-type ClusterIP \
       || {
         echo ""
         echo "==> Peering failed (likely RBAC). Complete manually from ardenone-hub:"
         echo "    KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \\"
         echo "      --remote-kubeconfig /tmp/${local.cloudspace_name}.kubeconfig \\"
-        echo "      --server-service-type ClusterIP"
+        echo "      --gw-server-service-type ClusterIP"
         echo ""
         echo "Kubeconfig has been written to: /tmp/${local.cloudspace_name}.kubeconfig"
         exit 0
