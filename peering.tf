@@ -4,12 +4,22 @@
 # The tf-operator runs on ardenone-hub and has in-cluster access to the
 # hub API. The spot kubeconfig is written by bootstrap.tf.
 #
+# --gw-server-service-location Consumer pins the WireGuard gateway to the
+# hub (ardenone-hub) side. The hub is a single-node VPS with a stable
+# Tailscale IP (100.100.51.40), so the gateway is always reachable from
+# the spot cluster. Without this flag the gateway lands on the spot side
+# where the addressOverride hostname may not resolve to the node actually
+# running the gateway pod.
+#
 # If peering fails (e.g. insufficient RBAC on the hub side), complete
 # it manually from ardenone-hub:
 #
 #   KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \
 #     --remote-kubeconfig /tmp/<cluster>.kubeconfig \
-#     --gw-server-service-type ClusterIP
+#     --gw-server-service-type ClusterIP \
+#     --gw-server-service-location Consumer \
+#     --skip-confirm \
+#     --timeout 15m
 
 resource "null_resource" "liqo_peer" {
   count = var.skip_bootstrap ? 0 : 1
@@ -35,7 +45,10 @@ resource "null_resource" "liqo_peer" {
           echo "==> Liqo controller-manager not ready after 10m. Peering must be done manually."
           echo "    KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \\"
           echo "      --remote-kubeconfig /tmp/${local.cloudspace_name}.kubeconfig \\"
-          echo "      --gw-server-service-type ClusterIP"
+          echo "      --gw-server-service-type ClusterIP \\"
+          echo "      --gw-server-service-location Consumer \\"
+          echo "      --skip-confirm \\"
+          echo "      --timeout 15m"
           exit 0
         fi
         sleep 10
@@ -51,16 +64,45 @@ resource "null_resource" "liqo_peer" {
       liqoctl peer \
         --remote-kubeconfig "${local_sensitive_file.spot_kubeconfig.filename}" \
         --gw-server-service-type ClusterIP \
+        --gw-server-service-location Consumer \
+        --skip-confirm \
+        --timeout 15m \
       || {
         echo ""
         echo "==> Peering failed (likely RBAC). Complete manually from ardenone-hub:"
         echo "    KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \\"
         echo "      --remote-kubeconfig /tmp/${local.cloudspace_name}.kubeconfig \\"
-        echo "      --gw-server-service-type ClusterIP"
+        echo "      --gw-server-service-type ClusterIP \\"
+        echo "      --gw-server-service-location Consumer \\"
+        echo "      --skip-confirm \\"
+        echo "      --timeout 15m"
         echo ""
         echo "Kubeconfig has been written to: /tmp/${local.cloudspace_name}.kubeconfig"
         exit 0
       }
+    EOT
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<-EOT
+      set -euo pipefail
+      export PATH="/tmp:$PATH"
+
+      # Use k3s kubeconfig on the host for the hub side (same as peer)
+      unset KUBECONFIG
+      if [ -f /etc/rancher/k3s/k3s.yaml ]; then
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+      fi
+
+      # Construct kubeconfig path from trigger (cannot reference other resources in destroy)
+      SPOT_KUBECONFIG="/tmp/${self.triggers.cloudspace}.kubeconfig"
+
+      echo "==> Unpeering ${self.triggers.cloudspace} from ardenone-hub"
+      liqoctl unpeer \
+        --remote-kubeconfig "$SPOT_KUBECONFIG" \
+        --skip-confirm \
+      || true
     EOT
   }
 
