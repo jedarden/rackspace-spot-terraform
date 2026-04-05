@@ -21,8 +21,27 @@ resource "null_resource" "liqo_peer" {
     command = <<-EOT
       set -euo pipefail
       export PATH="/tmp:$PATH"
+      export KUBECONFIG="${local_sensitive_file.spot_kubeconfig.filename}"
 
-      # Use k3s kubeconfig on the host, or fall back to in-cluster config
+      # Wait for liqo controller-manager to be ready on the spot cluster
+      echo "==> Waiting for liqo-controller-manager on ${local.cloudspace_name}..."
+      for i in $(seq 1 60); do
+        if kubectl -n liqo-system get deploy liqo-controller-manager -o jsonpath='{.status.readyReplicas}' 2>/dev/null | grep -q "1"; then
+          echo "==> Liqo controller-manager ready"
+          break
+        fi
+        if [ "$i" -eq 60 ]; then
+          echo "==> Liqo controller-manager not ready after 10m. Peering must be done manually."
+          echo "    KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \\"
+          echo "      --remote-kubeconfig /tmp/${local.cloudspace_name}.kubeconfig \\"
+          echo "      --server-service-type ClusterIP"
+          exit 0
+        fi
+        sleep 10
+      done
+
+      # Use k3s kubeconfig on the host for the hub side
+      unset KUBECONFIG
       if [ -f /etc/rancher/k3s/k3s.yaml ]; then
         export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
       fi

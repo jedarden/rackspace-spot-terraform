@@ -82,7 +82,7 @@ resource "null_resource" "tailscale" {
       helm upgrade --install tailscale-operator tailscale/tailscale-operator \
         --namespace tailscale \
         --version "${var.tailscale_operator_version}" \
-        --wait --timeout 15m \
+        --timeout 15m \
         --set installCRDs=true \
         --set oauth.secretName=operator-oauth \
         --set "operatorConfig.hostname=${local.cloudspace_name}" \
@@ -113,7 +113,7 @@ resource "null_resource" "liqo" {
       helm upgrade --install liqo liqo/liqo \
         --namespace liqo-system --create-namespace \
         --version "${var.liqo_version}" \
-        --wait --timeout 15m \
+        --timeout 15m \
         --set ipam.podCIDR=10.42.0.0/16 \
         --set ipam.serviceCIDR=10.43.0.0/16 \
         --set gateway.config.addressOverride=${local.cloudspace_name} \
@@ -178,7 +178,8 @@ resource "null_resource" "cert_manager" {
         --namespace cert-manager --create-namespace \
         --version "${var.cert_manager_version}" \
         --timeout 15m \
-        --set crds.enabled=true
+        --set crds.enabled=true \
+        --set startupapicheck.enabled=false
     EOT
   }
 
