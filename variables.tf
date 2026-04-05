@@ -77,7 +77,13 @@ variable "skip_bootstrap" {
   description = "Skip bootstrap resources (Tailscale, Liqo, Traefik, cert-manager). Use when cluster is already bootstrapped or RBAC is restricted."
 }
 
-# --- Bootstrap CRDs ---
+# --- Bootstrap tools and charts ---
+
+variable "helm_version" {
+  type        = string
+  default     = "3.17.0"
+  description = "Helm version to download at runtime for bootstrap."
+}
 
 variable "traefik_version" {
   type        = string
