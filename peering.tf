@@ -33,7 +33,7 @@ resource "null_resource" "liqo_peer" {
   count = var.skip_bootstrap ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
-    version    = "10"  # bump to force re-peering
+    version    = "11"  # bump to force re-peering
   }
 
   provisioner "local-exec" {
@@ -117,7 +117,7 @@ resource "null_resource" "liqo_peer" {
         --namespace liqo-system \
         --remote-namespace liqo-system \
         --skip-confirm \
-        --timeout 15m \
+        --timeout 30m \
       || {
         echo ""
         echo "==> Peering failed. Check if ${local.cloudspace_name}-liqo is in the tailnet."
