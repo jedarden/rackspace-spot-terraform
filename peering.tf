@@ -27,7 +27,7 @@ resource "null_resource" "liqo_peer" {
   count = var.skip_bootstrap ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
-    version    = "7"  # bump to force re-peering
+    version    = "8"  # bump to force re-peering
   }
 
   provisioner "local-exec" {
@@ -65,9 +65,9 @@ resource "null_resource" "liqo_peer" {
         export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
       fi
 
-      # Clean up any stale peering state from prior runs before peering.
-      # liqotech creates liqo-tenant-<hub-id> on the spot cluster itself —
-      # pre-creating it causes AlreadyExists errors.
+      # Clean up stale peering state from prior runs.
+      # liqoctl unpeer handles most cleanup but does not delete liqo-tenant-*
+      # namespaces; we delete them explicitly so liqotech can create them fresh.
       echo "==> Cleaning up stale peering state (if any)..."
       liqoctl unpeer \
         --remote-kubeconfig "$SPOT_KUBECONFIG" \
@@ -75,6 +75,24 @@ resource "null_resource" "liqo_peer" {
         --remote-namespace liqo-system \
         --skip-confirm \
         2>&1 || true
+
+      # Explicitly remove stale liqo-tenant namespaces so liqotech can recreate them.
+      HUB_CLUSTER_ID=$(kubectl get configmap liqo-clusterid-configmap \
+        -n liqo-system -o jsonpath='{.data.CLUSTER_ID}' 2>/dev/null || echo "")
+      SPOT_CLUSTER_ID=$(kubectl --kubeconfig "$SPOT_KUBECONFIG" \
+        get configmap liqo-clusterid-configmap \
+        -n liqo-system -o jsonpath='{.data.CLUSTER_ID}' 2>/dev/null || echo "")
+
+      if [ -n "$HUB_CLUSTER_ID" ]; then
+        echo "==> Deleting liqo-tenant-$HUB_CLUSTER_ID from spot cluster (if exists)..."
+        kubectl --kubeconfig "$SPOT_KUBECONFIG" delete namespace \
+          "liqo-tenant-$HUB_CLUSTER_ID" --ignore-not-found=true 2>/dev/null || true
+      fi
+      if [ -n "$SPOT_CLUSTER_ID" ]; then
+        echo "==> Deleting liqo-tenant-$SPOT_CLUSTER_ID from hub (if exists)..."
+        kubectl delete namespace \
+          "liqo-tenant-$SPOT_CLUSTER_ID" --ignore-not-found=true 2>/dev/null || true
+      fi
 
       echo "==> Peering ${local.cloudspace_name} with ardenone-hub"
       liqoctl peer \
