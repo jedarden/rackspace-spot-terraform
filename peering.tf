@@ -33,7 +33,7 @@ resource "null_resource" "liqo_peer" {
   count = var.skip_bootstrap ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
-    version    = "11"  # bump to force re-peering
+    version    = "12"  # bump to force re-peering
   }
 
   provisioner "local-exec" {
@@ -51,6 +51,28 @@ resource "null_resource" "liqo_peer" {
         fi
         if [ "$i" -eq 60 ]; then
           echo "==> Liqo controller-manager not ready after 10m. Peering must be done manually."
+          exit 0
+        fi
+        sleep 10
+      done
+
+      # Wait for liqo-fabric DaemonSet to be fully ready.
+      # liqo-fabric sets up service-CIDR routing on the spot node via the WireGuard tunnel.
+      # Without it, the spot's liqo-controller-manager cannot reach the hub's liqo-proxy
+      # to complete the auth exchange. The initial liqo install uses --no-wait, so fabric
+      # may still be starting when the controller-manager is first Ready.
+      echo "==> Waiting for liqo-fabric DaemonSet on ${local.cloudspace_name}..."
+      for i in $(seq 1 120); do
+        DESIRED=$(kubectl -n liqo-system get ds liqo-fabric \
+          -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo "")
+        READY=$(kubectl -n liqo-system get ds liqo-fabric \
+          -o jsonpath='{.status.numberReady}' 2>/dev/null || echo "0")
+        if [ -n "$DESIRED" ] && [ "$DESIRED" != "0" ] && [ "$DESIRED" = "$READY" ]; then
+          echo "==> liqo-fabric ready ($READY/$DESIRED)"
+          break
+        fi
+        if [ "$i" -eq 120 ]; then
+          echo "==> liqo-fabric not ready after 20m. Peering must be done manually."
           exit 0
         fi
         sleep 10
