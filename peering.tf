@@ -1,26 +1,31 @@
 # Liqo peering with ardenone-hub.
 #
-# liqoctl peer requires both kubeconfigs (hub + spot).
-# The tf-operator runs on ardenone-hub and has in-cluster access to the
-# hub API. The spot kubeconfig is written by bootstrap.tf.
+# Architecture: Provider (spot) → Tailscale operator ingress → Consumer (hub)
 #
-# --gw-server-service-location Consumer pins the WireGuard gateway to the
-# hub (ardenone-hub) side. The hub is a single-node VPS with a stable
-# Tailscale IP (100.100.51.40), so the gateway is always reachable from
-# the spot cluster. Without this flag the gateway lands on the spot side
-# where the addressOverride hostname may not resolve to the node actually
-# running the gateway pod.
+# The spot cluster installs liqo with:
+#   gateway.config.addressOverride = <cloudspace>-liqo
+#   gateway.service.type           = LoadBalancer
+#   gateway.service.annotations    = {tailscale.com/expose: "true",
+#                                     tailscale.com/hostname: <cloudspace>-liqo}
 #
-# If peering fails (e.g. insufficient RBAC on the hub side), complete
-# it manually from ardenone-hub:
+# This causes the Tailscale operator to create a device named <cloudspace>-liqo
+# on the tailnet, exposing the liqo WireGuard gateway. The hub's gateway client
+# connects to <cloudspace>-liqo via Tailscale MagicDNS.
+#
+# Flow:
+#   1. Spot joins tailnet (Tailscale operator bootstrap)
+#   2. liqoctl peer creates GatewayServer on spot; liqo controller creates
+#      LoadBalancer service; Tailscale operator exposes it as <cloudspace>-liqo
+#   3. Hub's GatewayClient reads endpoint from GatewayServer status
+#      (addressOverride = <cloudspace>-liqo) and connects via Tailscale
+#   4. WireGuard tunnel established through the tailnet
+#
+# Manual recovery from ardenone-hub:
 #
 #   KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \
 #     --remote-kubeconfig /tmp/<cluster>.kubeconfig \
 #     --namespace liqo-system \
 #     --remote-namespace liqo-system \
-#     --gw-server-service-type NodePort \
-#     --gw-server-service-location Consumer \
-#     --gw-client-address 100.100.51.40 \
 #     --skip-confirm \
 #     --timeout 15m
 
@@ -28,7 +33,7 @@ resource "null_resource" "liqo_peer" {
   count = var.skip_bootstrap ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
-    version    = "9"  # bump to force re-peering
+    version    = "10"  # bump to force re-peering
   }
 
   provisioner "local-exec" {
@@ -46,18 +51,25 @@ resource "null_resource" "liqo_peer" {
         fi
         if [ "$i" -eq 60 ]; then
           echo "==> Liqo controller-manager not ready after 10m. Peering must be done manually."
-          echo "    KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \\"
-          echo "      --remote-kubeconfig /tmp/${local.cloudspace_name}.kubeconfig \\"
-          echo "      --namespace liqo-system \\"
-          echo "      --remote-namespace liqo-system \\"
-          echo "      --gw-server-service-type NodePort \\"
-          echo "      --gw-server-service-location Consumer \\"
-          echo "      --skip-confirm \\"
-          echo "      --timeout 15m"
           exit 0
         fi
         sleep 10
       done
+
+      # Upgrade liqo on spot to expose the gateway via the Tailscale operator.
+      # The gateway service needs tailscale.com/expose so the operator creates a
+      # Tailscale device for it, making it reachable from the hub via MagicDNS.
+      # addressOverride sets the endpoint hostname liqo advertises to the hub.
+      echo "==> Upgrading liqo gateway to use Tailscale operator ingress..."
+      helm repo add liqo https://helm.liqo.io/ 2>/dev/null || true
+      helm upgrade liqo liqo/liqo \
+        --namespace liqo-system \
+        --version "${var.liqo_version}" \
+        --reuse-values \
+        --set gateway.config.addressOverride="${local.cloudspace_name}-liqo" \
+        --set gateway.service.type=LoadBalancer \
+        --set-json "gateway.service.annotations={\"tailscale.com/expose\":\"true\",\"tailscale.com/hostname\":\"${local.cloudspace_name}-liqo\"}" \
+        --timeout 5m
 
       # Switch to hub (in-cluster config)
       SPOT_KUBECONFIG="${local_sensitive_file.spot_kubeconfig.filename}"
@@ -67,15 +79,16 @@ resource "null_resource" "liqo_peer" {
       fi
 
       # Clean up stale peering state from prior runs.
-      # liqoctl unpeer handles most cleanup but does not delete liqo-tenant-*
-      # namespaces; we delete them explicitly so liqotech can create them fresh.
       echo "==> Cleaning up stale peering state (if any)..."
-      liqoctl unpeer \
-        --remote-kubeconfig "$SPOT_KUBECONFIG" \
-        --namespace liqo-system \
-        --remote-namespace liqo-system \
-        --skip-confirm \
-        2>&1 || true
+      liqotech_unpeer() {
+        liqoctl unpeer \
+          --remote-kubeconfig "$SPOT_KUBECONFIG" \
+          --namespace liqo-system \
+          --remote-namespace liqo-system \
+          --skip-confirm \
+          2>&1 || true
+      }
+      liqotech_unpeer
 
       # Explicitly remove stale liqo-tenant namespaces so liqotech can recreate them.
       HUB_CLUSTER_ID=$(kubectl get configmap liqo-clusterid-configmap \
@@ -95,25 +108,24 @@ resource "null_resource" "liqo_peer" {
           "liqo-tenant-$SPOT_CLUSTER_ID" --ignore-not-found=true 2>/dev/null || true
       fi
 
-      echo "==> Peering ${local.cloudspace_name} with ardenone-hub"
+      # Wait for Tailscale operator to create the device for the liqo gateway.
+      # The device is created when liqoctl peer triggers the GatewayServer
+      # controller to create the LoadBalancer service. We allow up to 3 min.
+      echo "==> Peering ${local.cloudspace_name} with ardenone-hub (Provider via Tailscale)..."
       liqoctl peer \
-        --remote-kubeconfig "${local_sensitive_file.spot_kubeconfig.filename}" \
+        --remote-kubeconfig "$SPOT_KUBECONFIG" \
         --namespace liqo-system \
         --remote-namespace liqo-system \
-        --gw-server-service-type NodePort \
-        --gw-server-service-location Consumer \
-        --gw-client-address 100.100.51.40 \
         --skip-confirm \
         --timeout 15m \
       || {
         echo ""
-        echo "==> Peering failed (likely RBAC). Complete manually from ardenone-hub:"
+        echo "==> Peering failed. Check if ${local.cloudspace_name}-liqo is in the tailnet."
+        echo "    Complete manually from ardenone-hub:"
         echo "    KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \\"
         echo "      --remote-kubeconfig /tmp/${local.cloudspace_name}.kubeconfig \\"
         echo "      --namespace liqo-system \\"
         echo "      --remote-namespace liqo-system \\"
-        echo "      --gw-server-service-type NodePort \\"
-        echo "      --gw-server-service-location Consumer \\"
         echo "      --skip-confirm \\"
         echo "      --timeout 15m"
         echo ""
