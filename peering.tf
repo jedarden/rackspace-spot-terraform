@@ -33,7 +33,7 @@ resource "null_resource" "liqo_peer" {
   count = var.skip_bootstrap ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
-    version    = "13"  # bump to force re-peering
+    version    = "14"  # bump to force re-peering
   }
 
   provisioner "local-exec" {
@@ -104,6 +104,7 @@ resource "null_resource" "liqo_peer" {
         --set gateway.config.addressOverride="${local.cloudspace_name}-liqo" \
         --set gateway.service.type=LoadBalancer \
         --set-json "gateway.service.annotations={\"tailscale.com/expose\":\"true\",\"tailscale.com/hostname\":\"${local.cloudspace_name}-liqo\"}" \
+        --set "apiServer.address=${data.spot_kubeconfig.main.kubeconfigs[0].host}" \
         --timeout 5m
 
       # Switch to hub (in-cluster config)
@@ -132,11 +133,16 @@ resource "null_resource" "liqo_peer" {
         get configmap liqo-clusterid-configmap \
         -n liqo-system -o jsonpath='{.data.CLUSTER_ID}' 2>/dev/null || echo "")
 
-      if [ -n "$HUB_CLUSTER_ID" ]; then
-        echo "==> Deleting liqo-tenant-$HUB_CLUSTER_ID from spot cluster (if exists)..."
-        kubectl --kubeconfig "$SPOT_KUBECONFIG" delete namespace \
-          "liqo-tenant-$HUB_CLUSTER_ID" --ignore-not-found=true 2>/dev/null || true
-      fi
+      # Delete ALL stale liqo-tenant namespaces from prior hub cluster ID incarnations.
+      # The hub has been reinstalled multiple times (different cluster IDs each time),
+      # leaving orphaned tenant namespaces that keep failing with the same auth error.
+      echo "==> Deleting all liqo-tenant-* namespaces from spot cluster..."
+      kubectl --kubeconfig "$SPOT_KUBECONFIG" get namespace \
+        -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
+        | grep "^liqo-tenant-" \
+        | xargs -r kubectl --kubeconfig "$SPOT_KUBECONFIG" delete namespace \
+          --ignore-not-found=true 2>/dev/null || true
+
       if [ -n "$SPOT_CLUSTER_ID" ]; then
         echo "==> Deleting liqo-tenant-$SPOT_CLUSTER_ID from hub (if exists)..."
         kubectl delete namespace \

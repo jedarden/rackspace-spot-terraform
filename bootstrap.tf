@@ -99,7 +99,8 @@ resource "null_resource" "tailscale" {
 resource "null_resource" "liqo" {
   count = var.skip_bootstrap ? 0 : 1
   triggers = {
-    cloudspace = local.cloudspace_name
+    cloudspace  = local.cloudspace_name
+    api_address = "2"  # bump to force re-run with apiServer.address fix
   }
 
   provisioner "local-exec" {
@@ -121,7 +122,8 @@ resource "null_resource" "liqo" {
         --set gateway.service.type=LoadBalancer \
         --set-json "gateway.service.annotations={\"tailscale.com/expose\":\"true\",\"tailscale.com/hostname\":\"${local.cloudspace_name}-liqo\"}" \
         --set networking.enabled=true \
-        --set authentication.config.allowAll=true
+        --set authentication.config.allowAll=true \
+        --set "apiServer.address=${data.spot_kubeconfig.main.kubeconfigs[0].host}"
     EOT
   }
 
