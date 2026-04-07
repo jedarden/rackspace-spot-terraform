@@ -33,7 +33,7 @@ resource "null_resource" "liqo_peer" {
   count = var.skip_bootstrap ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
-    version    = "12"  # bump to force re-peering
+    version    = "13"  # bump to force re-peering
   }
 
   provisioner "local-exec" {
@@ -77,6 +77,19 @@ resource "null_resource" "liqo_peer" {
         fi
         sleep 10
       done
+
+      # DIAGNOSTIC: capture spot cluster state before peering attempt.
+      echo "==> DIAGNOSTIC: Spot liqo pods"
+      kubectl get pods -n liqo-system -o wide 2>&1 || true
+      echo "==> DIAGNOSTIC: Spot cluster ID"
+      kubectl get configmap liqo-clusterid-configmap -n liqo-system \
+        -o jsonpath='{.data.CLUSTER_ID}' 2>&1 || true
+      echo ""
+      echo "==> DIAGNOSTIC: Spot controller-manager logs (last 100 lines)"
+      kubectl logs -n liqo-system deploy/liqo-controller-manager --tail=100 2>&1 || true
+      echo "==> DIAGNOSTIC: Spot ForeignClusters"
+      kubectl get foreignclusters -A 2>&1 || true
+      echo "==> END DIAGNOSTIC"
 
       # Upgrade liqo on spot to expose the gateway via the Tailscale operator.
       # The gateway service needs tailscale.com/expose so the operator creates a
@@ -140,7 +153,13 @@ resource "null_resource" "liqo_peer" {
         --remote-namespace liqo-system \
         --skip-confirm \
         --timeout 30m \
+        --gw-server-service-type LoadBalancer \
       || {
+        echo "==> DIAGNOSTIC (post-failure): Spot controller-manager logs (last 150 lines)"
+        kubectl --kubeconfig "$SPOT_KUBECONFIG" logs -n liqo-system \
+          deploy/liqo-controller-manager --tail=150 2>&1 || true
+        echo "==> DIAGNOSTIC: Hub controller-manager logs (last 50 lines)"
+        kubectl logs -n liqo-system deploy/liqo-controller-manager --tail=50 2>&1 || true
         echo ""
         echo "==> Peering failed. Check if ${local.cloudspace_name}-liqo is in the tailnet."
         echo "    Complete manually from ardenone-hub:"
