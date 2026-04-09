@@ -43,7 +43,7 @@ resource "null_resource" "liqo_peer" {
   count = var.skip_bootstrap ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
-    version    = "16"  # bump to force re-peering
+    version    = "17"  # bump to force re-peering
   }
 
   provisioner "local-exec" {
@@ -148,17 +148,26 @@ resource "null_resource" "liqo_peer" {
           "liqo-tenant-$SPOT_CLUSTER_ID" --ignore-not-found=true 2>/dev/null || true
       fi
 
-      # Restart hub's liqo-crd-replicator to clear its cached namespace UIDs.
+      # Restart hub's liqo-controller-manager AND liqo-crd-replicator to clear stale namespace UID caches.
       #
-      # The CRD replicator caches the UID of spot's liqo-tenant-<hub-id> namespace
-      # when it first creates ownerReferences on the replicated ResourceSlice. If
-      # that namespace is deleted/recreated (by cleanup above), the cached UID is
-      # stale. Spot's resourceslice_remote controller validates the ownerRef UID
-      # and fails: "Namespace <stale-uid> not found".
+      # Root cause of v17/v18/v19 "Namespace <old-uid> not found":
       #
-      # After restart the replicator reads the CURRENT namespace UID from the
-      # Kubernetes API, sets the correct ownerReference, and spot's controller
-      # can proceed.
+      # Hub's localresourceslice_controller (inside liqo-controller-manager) creates
+      # the ResourceSlice in liqo-tenant-<spot-id> with ownerRef.uid set to that
+      # namespace's UID at creation time. If the namespace is deleted+recreated
+      # (by unpeer/cleanup), it gets a new UID. The controller's runtime cache still
+      # has the old UID, so it creates the ResourceSlice with a stale ownerRef.
+      # The CRD replicator faithfully copies this stale ownerRef to spot.
+      # Spot's resourceslice_remote controller validates the ownerRef UID against
+      # liqo-tenant-<hub-id> and fails: "Namespace <stale-uid> not found".
+      #
+      # Fix: restart BOTH controllers after cleanup so they read current namespace
+      # UIDs fresh from the Kubernetes API before the next peering attempt.
+      echo "==> Restarting hub liqo-controller-manager to clear stale namespace UID cache..."
+      kubectl rollout restart deployment/liqo-controller-manager -n liqo-system
+      kubectl rollout status deployment/liqo-controller-manager -n liqo-system --timeout=3m
+      echo "==> liqo-controller-manager restarted and ready"
+
       echo "==> Restarting hub liqo-crd-replicator to clear stale namespace UID cache..."
       kubectl rollout restart deployment/liqo-crd-replicator -n liqo-system
       kubectl rollout status deployment/liqo-crd-replicator -n liqo-system --timeout=3m
