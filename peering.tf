@@ -20,6 +20,16 @@
 #      (addressOverride = <cloudspace>-liqo) and connects via Tailscale
 #   4. WireGuard tunnel established through the tailnet
 #
+# Root cause of prior failures (v17/v18 "Namespace not found"):
+#
+#   Hub's liqo-crd-replicator caches the UID of spot's liqo-tenant-<hub-id>
+#   namespace when it first replicates the ResourceSlice. If that namespace is
+#   deleted and recreated (by cleanup/unpeer), it gets a new UID. The replicator
+#   still uses the old cached UID in ownerReferences. Spot's resourceslice_remote
+#   controller validates the ownerRef UID and fails with "Namespace <old-uid>
+#   not found". Fix: restart liqo-crd-replicator after cleanup so it reads the
+#   current namespace UID fresh from the API.
+#
 # Manual recovery from ardenone-hub:
 #
 #   KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \
@@ -33,7 +43,7 @@ resource "null_resource" "liqo_peer" {
   count = var.skip_bootstrap ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
-    version    = "15"  # bump to force re-peering
+    version    = "16"  # bump to force re-peering
   }
 
   provisioner "local-exec" {
@@ -57,10 +67,6 @@ resource "null_resource" "liqo_peer" {
       done
 
       # Wait for liqo-fabric DaemonSet to be fully ready.
-      # liqo-fabric sets up service-CIDR routing on the spot node via the WireGuard tunnel.
-      # Without it, the spot's liqo-controller-manager cannot reach the hub's liqo-proxy
-      # to complete the auth exchange. The initial liqo install uses --no-wait, so fabric
-      # may still be starting when the controller-manager is first Ready.
       echo "==> Waiting for liqo-fabric DaemonSet on ${local.cloudspace_name}..."
       for i in $(seq 1 120); do
         DESIRED=$(kubectl -n liqo-system get ds liqo-fabric \
@@ -85,16 +91,11 @@ resource "null_resource" "liqo_peer" {
       kubectl get configmap liqo-clusterid-configmap -n liqo-system \
         -o jsonpath='{.data.CLUSTER_ID}' 2>&1 || true
       echo ""
-      echo "==> DIAGNOSTIC: Spot controller-manager logs (last 100 lines)"
-      kubectl logs -n liqo-system deploy/liqo-controller-manager --tail=100 2>&1 || true
       echo "==> DIAGNOSTIC: Spot ForeignClusters"
       kubectl get foreignclusters -A 2>&1 || true
       echo "==> END DIAGNOSTIC"
 
       # Upgrade liqo on spot to expose the gateway via the Tailscale operator.
-      # The gateway service needs tailscale.com/expose so the operator creates a
-      # Tailscale device for it, making it reachable from the hub via MagicDNS.
-      # addressOverride sets the endpoint hostname liqo advertises to the hub.
       echo "==> Upgrading liqo gateway to use Tailscale operator ingress..."
       helm repo add liqo https://helm.liqo.io/ 2>/dev/null || true
       helm upgrade liqo liqo/liqo \
@@ -134,8 +135,6 @@ resource "null_resource" "liqo_peer" {
         -n liqo-system -o jsonpath='{.data.CLUSTER_ID}' 2>/dev/null || echo "")
 
       # Delete ALL stale liqo-tenant namespaces from prior hub cluster ID incarnations.
-      # The hub has been reinstalled multiple times (different cluster IDs each time),
-      # leaving orphaned tenant namespaces that keep failing with the same auth error.
       echo "==> Deleting all liqo-tenant-* namespaces from spot cluster..."
       kubectl --kubeconfig "$SPOT_KUBECONFIG" get namespace \
         -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
@@ -149,58 +148,24 @@ resource "null_resource" "liqo_peer" {
           "liqo-tenant-$SPOT_CLUSTER_ID" --ignore-not-found=true 2>/dev/null || true
       fi
 
-      # Two-phase peering to work around Liqo v1.1.2 ownerReference bug.
+      # Restart hub's liqo-crd-replicator to clear its cached namespace UIDs.
       #
-      # Bug: When hub's CRD replicator creates the ResourceSlice on spot, it sets
-      # ownerReferences containing hub's namespace UID (not spot's). Spot's
-      # resourceslice_remote controller then tries to look up a namespace by that
-      # UID, finds none (UIDs are cluster-local), and fails indefinitely with:
-      #   "Namespace <hub-ns-uid> not found"
-      # This blocks spot from accepting the ResourceSlice, so hub never creates a
-      # VirtualNode and liqoctl peer times out.
+      # The CRD replicator caches the UID of spot's liqo-tenant-<hub-id> namespace
+      # when it first creates ownerReferences on the replicated ResourceSlice. If
+      # that namespace is deleted/recreated (by cleanup above), the cached UID is
+      # stale. Spot's resourceslice_remote controller validates the ownerRef UID
+      # and fails: "Namespace <stale-uid> not found".
       #
-      # Fix: run a short Phase 1 to create initial auth/network resources and the
-      # ResourceSlice on spot, then patch out the ownerReferences, then run Phase 2
-      # to wait for the peering to complete now that spot's controller can proceed.
-      # The CRD replicator only sets ownerReferences on Create, not Update, so the
-      # patch persists across subsequent replicator sync cycles.
+      # After restart the replicator reads the CURRENT namespace UID from the
+      # Kubernetes API, sets the correct ownerReference, and spot's controller
+      # can proceed.
+      echo "==> Restarting hub liqo-crd-replicator to clear stale namespace UID cache..."
+      kubectl rollout restart deployment/liqo-crd-replicator -n liqo-system
+      kubectl rollout status deployment/liqo-crd-replicator -n liqo-system --timeout=3m
+      echo "==> liqo-crd-replicator restarted and ready"
 
-      echo "==> Phase 1: Initiating peer (5m timeout; creates ResourceSlice + auth)..."
-      liqoctl peer \
-        --remote-kubeconfig "$SPOT_KUBECONFIG" \
-        --namespace liqo-system \
-        --remote-namespace liqo-system \
-        --skip-confirm \
-        --timeout 5m \
-        --gw-server-service-type LoadBalancer \
-      2>&1 || true  # Phase 1 times out normally; ignore exit code
-
-      echo "==> Patching ResourceSlice ownerReferences on spot (Liqo v1.1.2 workaround)..."
-      if [ -n "$HUB_CLUSTER_ID" ] && [ -n "$SPOT_CLUSTER_ID" ]; then
-        PATCHED=0
-        for i in $(seq 1 18); do  # poll up to 3 minutes
-          sleep 10
-          RS=$(kubectl --kubeconfig "$SPOT_KUBECONFIG" get resourceslice \
-            "$SPOT_CLUSTER_ID" -n "liqo-tenant-$HUB_CLUSTER_ID" \
-            --ignore-not-found 2>/dev/null || true)
-          if [ -n "$RS" ]; then
-            kubectl --kubeconfig "$SPOT_KUBECONFIG" patch resourceslice \
-              "$SPOT_CLUSTER_ID" -n "liqo-tenant-$HUB_CLUSTER_ID" \
-              --type=merge \
-              -p='{"metadata":{"ownerReferences":null}}' \
-              2>/dev/null && echo "==> ResourceSlice ownerReferences cleared" && PATCHED=1 && break
-          fi
-          echo "==> Waiting for ResourceSlice on spot (attempt $i/18)..."
-        done
-        if [ "$PATCHED" -eq 0 ]; then
-          echo "==> WARNING: Could not patch ResourceSlice ownerReferences — Phase 2 may still fail"
-        fi
-        # Give spot's controller time to retry after the patch
-        echo "==> Waiting 30s for spot controller to retry..."
-        sleep 30
-      fi
-
-      echo "==> Phase 2: Completing peer (25m timeout)..."
+      # Peer hub (consumer) with spot (provider).
+      echo "==> Peering hub with ${local.cloudspace_name} (25m timeout)..."
       liqoctl peer \
         --remote-kubeconfig "$SPOT_KUBECONFIG" \
         --namespace liqo-system \
@@ -214,6 +179,8 @@ resource "null_resource" "liqo_peer" {
           deploy/liqo-controller-manager --tail=150 2>&1 || true
         echo "==> DIAGNOSTIC: Hub controller-manager logs (last 50 lines)"
         kubectl logs -n liqo-system deploy/liqo-controller-manager --tail=50 2>&1 || true
+        echo "==> DIAGNOSTIC: Hub crd-replicator logs (last 50 lines)"
+        kubectl logs -n liqo-system deploy/liqo-crd-replicator --tail=50 2>&1 || true
         echo ""
         echo "==> Peering failed. Check if ${local.cloudspace_name}-liqo is in the tailnet."
         echo "    Complete manually from ardenone-hub:"
