@@ -119,7 +119,7 @@ resource "null_resource" "liqo" {
         --set ipam.podCIDR=10.42.0.0/16 \
         --set ipam.serviceCIDR=10.43.0.0/16 \
         --set gateway.config.addressOverride="${local.cloudspace_name}-liqo" \
-        --set gateway.service.type=LoadBalancer \
+        --set gateway.service.type=ClusterIP \
         --set-json "gateway.service.annotations={\"tailscale.com/expose\":\"true\",\"tailscale.com/hostname\":\"${local.cloudspace_name}-liqo\"}" \
         --set networking.enabled=true \
         --set authentication.config.allowAll=true \
@@ -154,7 +154,7 @@ resource "null_resource" "traefik" {
         --set ports.websecure.port=8443 \
         --set ports.websecure.expose.default=true \
         --set ports.websecure.protocol=TCP \
-        --set service.type=LoadBalancer
+        --set service.type=ClusterIP
     EOT
   }
 

@@ -4,18 +4,18 @@
 #
 # The spot cluster installs liqo with:
 #   gateway.config.addressOverride = <cloudspace>-liqo
-#   gateway.service.type           = LoadBalancer
+#   gateway.service.type           = ClusterIP
 #   gateway.service.annotations    = {tailscale.com/expose: "true",
 #                                     tailscale.com/hostname: <cloudspace>-liqo}
 #
-# This causes the Tailscale operator to create a device named <cloudspace>-liqo
-# on the tailnet, exposing the liqo WireGuard gateway. The hub's gateway client
-# connects to <cloudspace>-liqo via Tailscale MagicDNS.
+# The Tailscale operator creates a device named <cloudspace>-liqo on the tailnet,
+# exposing the liqo WireGuard gateway via ClusterIP (no cloud LoadBalancer needed).
+# The hub's gateway client connects to <cloudspace>-liqo via Tailscale MagicDNS.
 #
 # Flow:
 #   1. Spot joins tailnet (Tailscale operator bootstrap)
 #   2. liqoctl peer creates GatewayServer on spot; liqo controller creates
-#      LoadBalancer service; Tailscale operator exposes it as <cloudspace>-liqo
+#      ClusterIP service; Tailscale operator exposes it as <cloudspace>-liqo
 #   3. Hub's GatewayClient reads endpoint from GatewayServer status
 #      (addressOverride = <cloudspace>-liqo) and connects via Tailscale
 #   4. WireGuard tunnel established through the tailnet
@@ -103,7 +103,7 @@ resource "null_resource" "liqo_peer" {
         --version "${var.liqo_version}" \
         --reuse-values \
         --set gateway.config.addressOverride="${local.cloudspace_name}-liqo" \
-        --set gateway.service.type=LoadBalancer \
+        --set gateway.service.type=ClusterIP \
         --set-json "gateway.service.annotations={\"tailscale.com/expose\":\"true\",\"tailscale.com/hostname\":\"${local.cloudspace_name}-liqo\"}" \
         --set "apiServer.address=${data.spot_kubeconfig.main.kubeconfigs[0].host}" \
         --timeout 5m
@@ -181,7 +181,7 @@ resource "null_resource" "liqo_peer" {
         --remote-namespace liqo-system \
         --skip-confirm \
         --timeout 25m \
-        --gw-server-service-type LoadBalancer \
+        --gw-server-service-type ClusterIP \
       || {
         echo "==> DIAGNOSTIC (post-failure): Spot controller-manager logs (last 150 lines)"
         kubectl --kubeconfig "$SPOT_KUBECONFIG" logs -n liqo-system \
