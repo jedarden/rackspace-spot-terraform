@@ -4,9 +4,9 @@ Provisions disposable Kubernetes clusters on Rackspace Spot and peers them with 
 
 ## Networking Rules
 
-### No LoadBalancers (with one exception)
+### No LoadBalancers
 
-Rackspace Spot clusters must NOT provision cloud load balancers for application workloads. All application service types must be `ClusterIP`.
+Rackspace Spot clusters must NOT provision cloud load balancers. All service types must be `ClusterIP` or `NodePort` — never `LoadBalancer`.
 
 Accepted patterns for exposing application services:
 
@@ -18,15 +18,15 @@ This applies to every Helm install in this module:
 - Traefik: `--set service.type=ClusterIP`
 - Any future application chart: never set `service.type=LoadBalancer`
 
-### Exception: Liqo WireGuard Gateway
+### Liqo WireGuard Gateway uses NodePort
 
-The Liqo WireGuard gateway service MUST use `LoadBalancer` type. This is the one exception.
+The Liqo WireGuard gateway uses `NodePort` type. Liqo reads the node's public IP and the auto-assigned nodePort, then advertises them as the gateway endpoint. The hub's GatewayClient connects directly to `<node-ip>:<nodePort>` over UDP.
 
-- `liqoctl peer`: `--gw-server-service-type LoadBalancer` (default, do not override to ClusterIP)
-- `bootstrap.tf` Liqo Helm: `gateway.service.type=LoadBalancer`
+- `liqoctl peer`: `--gw-server-service-type NodePort`
+- `bootstrap.tf` Liqo Helm: `gateway.service.type=NodePort`
 
-**Why the exception:** Liqo v1.1.2's `gateway.config.addressOverride` setting is inert — it's in the Helm values but `--gateway-address-override` is never passed to `liqo-controller-manager`. The WgGatewayServer status always advertises the service's actual IP. With ClusterIP, that's an unreachable in-cluster IP. With LoadBalancer, Rackspace Spot's cloud controller assigns a public IP that the hub can reach. WireGuard authenticates via pre-shared keys, so public exposure is safe.
+**Why NodePort instead of ClusterIP:** Liqo v1.1.2's `gateway.config.addressOverride` setting is inert — it's in the Helm values but `--gateway-address-override` is never passed to `liqo-controller-manager`. With ClusterIP, the WgGatewayServer status advertises an unreachable in-cluster IP. With NodePort, Liqo reads the node's public IP and nodePort, which are reachable from ardenone-hub over the internet. WireGuard authenticates via pre-shared keys, so public UDP port exposure is safe.
 
 ### Why (general)
 
-Spot clusters are ephemeral and connected primarily via the Tailscale mesh. Cloud load balancers for applications are unnecessary, add cost, and expose services to the public internet without cause.
+Spot clusters are ephemeral and connected primarily via the Tailscale mesh. Cloud load balancers are unnecessary, add cost, and expose services to the public internet without cause.

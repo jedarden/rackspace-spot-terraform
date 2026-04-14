@@ -3,26 +3,18 @@
 # Architecture: Spot cluster hosts GatewayServer (Provider) → Hub's GatewayClient connects
 #
 # The spot cluster runs liqo with:
-#   gateway.service.type = LoadBalancer  (Rackspace Spot assigns a public IP)
+#   gateway.service.type = NodePort  (no cloud LB — uses the node's public IP)
 #
-# liqotech peer uses the default --gw-server-service-type LoadBalancer.
-# Rackspace's cloud controller assigns a public IP to the gateway LoadBalancer service.
-# The hub's GatewayClient reads this IP from the GatewayServer status and connects.
-#
-# Note on addressOverride (NOT USED):
-#   bootstrap.tf sets gateway.config.addressOverride=<cloudspace>-liqo and
-#   gateway.service.annotations=tailscale.com/expose,tailscale.com/hostname. In
-#   theory this should make the gateway advertise a Tailscale hostname instead of
-#   the LoadBalancer IP. In practice, Liqo v1.1.2's controller-manager doesn't
-#   receive --gateway-address-override, so addressOverride is inert for per-tenant
-#   gateway services. The LoadBalancer IP is used instead.
+# liqotech peer uses --gw-server-service-type NodePort.
+# Liqo reads the node's ExternalIP/InternalIP and the auto-assigned nodePort.
+# The hub's GatewayClient is set to <node-ip>:<nodePort> and connects via WireGuard UDP.
 #
 # Flow:
 #   1. Spot joins tailnet (Tailscale operator bootstrap)
-#   2. liqoctl peer creates GatewayServer on SPOT (Provider, LoadBalancer type)
-#   3. Rackspace assigns public IP to the LoadBalancer service
-#   4. Hub's GatewayClient reads public IP from GatewayServer status
-#   5. WireGuard tunnel established: hub → spot via public IP
+#   2. liqoctl peer creates GatewayServer on SPOT (Provider, NodePort type)
+#   3. Liqo reads node IP + nodePort → sets GatewayServer status endpoint
+#   4. liqoctl reads the endpoint and creates hub's GatewayClient pointing to it
+#   5. WireGuard tunnel established: hub → spot via node public IP + nodePort
 #
 # Root cause of prior failures (v17/v18 "Namespace not found"):
 #
@@ -165,9 +157,8 @@ resource "null_resource" "liqo_peer" {
       echo "==> liqo-crd-replicator restarted and ready"
 
       # Peer hub (consumer) with spot (provider).
-      # The spot cluster's GatewayServer uses a LoadBalancer service type — Rackspace
-      # Spot's cloud controller assigns a public IP, and the hub's GatewayClient
-      # reads it from the GatewayServer status and connects via WireGuard.
+      # The spot cluster's GatewayServer uses NodePort — Liqo reads the node's public
+      # IP and nodePort and the hub's GatewayClient connects directly over UDP.
       echo "==> Peering hub with ${local.cloudspace_name} (25m timeout)..."
       liqoctl peer \
         --remote-kubeconfig "$SPOT_KUBECONFIG" \
@@ -175,7 +166,7 @@ resource "null_resource" "liqo_peer" {
         --remote-namespace liqo-system \
         --skip-confirm \
         --timeout 25m \
-        --gw-server-service-type LoadBalancer \
+        --gw-server-service-type NodePort \
       || {
         echo "==> DIAGNOSTIC (post-failure): Spot controller-manager logs (last 150 lines)"
         kubectl --kubeconfig "$SPOT_KUBECONFIG" logs -n liqo-system \
@@ -192,7 +183,7 @@ resource "null_resource" "liqo_peer" {
         echo "      --remote-namespace liqo-system \\"
         echo "      --skip-confirm \\"
         echo "      --timeout 15m \\"
-        echo "      --gw-server-service-type LoadBalancer"
+        echo "      --gw-server-service-type NodePort"
         echo ""
         echo "Kubeconfig has been written to: /tmp/${local.cloudspace_name}.kubeconfig"
         exit 0

@@ -118,8 +118,7 @@ resource "null_resource" "liqo" {
         --timeout 15m \
         --set ipam.podCIDR=10.42.0.0/16 \
         --set ipam.serviceCIDR=10.43.0.0/16 \
-        --set gateway.config.addressOverride="${local.cloudspace_name}-liqo" \
-        --set gateway.service.type=LoadBalancer \
+        --set gateway.service.type=NodePort \
         --set-json "gateway.service.annotations={\"tailscale.com/expose\":\"true\",\"tailscale.com/hostname\":\"${local.cloudspace_name}-liqo\"}" \
         --set networking.enabled=true \
         --set authentication.config.allowAll=true \
