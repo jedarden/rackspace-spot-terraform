@@ -43,7 +43,7 @@ resource "null_resource" "liqo_peer" {
   count = var.skip_bootstrap ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
-    version    = "19"  # bump to force re-peering
+    version    = "20"  # bump to force re-peering
   }
 
   provisioner "local-exec" {
@@ -173,7 +173,36 @@ resource "null_resource" "liqo_peer" {
       kubectl rollout status deployment/liqo-crd-replicator -n liqo-system --timeout=3m
       echo "==> liqo-crd-replicator restarted and ready"
 
+      # Background annotator: as soon as liqoctl peer creates the gateway service
+      # on spot, add the Tailscale annotations. This allows the Tailscale operator
+      # to expose the ClusterIP as ${local.cloudspace_name}-liqo on the tailnet,
+      # which is the address the hub GatewayClient will use (--gw-client-address).
+      (
+        echo "==> Background annotator: watching for gateway service in liqo-tenant-$HUB_CLUSTER_ID..."
+        for i in $(seq 1 180); do
+          SVC_NAME=$(kubectl --kubeconfig "$SPOT_KUBECONFIG" \
+            get svc -n "liqo-tenant-$HUB_CLUSTER_ID" \
+            -l "networking.liqo.io/component=gateway" \
+            -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+          if [ -n "$SVC_NAME" ]; then
+            echo "==> Background annotator: annotating $SVC_NAME with Tailscale expose"
+            kubectl --kubeconfig "$SPOT_KUBECONFIG" annotate svc \
+              -n "liqo-tenant-$HUB_CLUSTER_ID" "$SVC_NAME" \
+              "tailscale.com/expose=true" \
+              "tailscale.com/hostname=${local.cloudspace_name}-liqo" \
+              --overwrite 2>/dev/null && echo "==> Background annotator: done" && exit 0
+          fi
+          sleep 5
+        done
+        echo "==> Background annotator: timed out waiting for gateway service"
+      ) &
+      ANNOTATOR_PID=$!
+
       # Peer hub (consumer) with spot (provider).
+      # --gw-client-address overrides the gateway server address that the hub's
+      # GatewayClient uses to connect. This bypasses the GatewayServer status
+      # (which shows the ClusterIP) and routes the WireGuard tunnel through
+      # the Tailscale mesh instead.
       echo "==> Peering hub with ${local.cloudspace_name} (25m timeout)..."
       liqoctl peer \
         --remote-kubeconfig "$SPOT_KUBECONFIG" \
@@ -182,6 +211,7 @@ resource "null_resource" "liqo_peer" {
         --skip-confirm \
         --timeout 25m \
         --gw-server-service-type ClusterIP \
+        --gw-client-address "${local.cloudspace_name}-liqo" \
       || {
         echo "==> DIAGNOSTIC (post-failure): Spot controller-manager logs (last 150 lines)"
         kubectl --kubeconfig "$SPOT_KUBECONFIG" logs -n liqo-system \
@@ -198,11 +228,14 @@ resource "null_resource" "liqo_peer" {
         echo "      --namespace liqo-system \\"
         echo "      --remote-namespace liqo-system \\"
         echo "      --skip-confirm \\"
-        echo "      --timeout 15m"
+        echo "      --timeout 15m \\"
+        echo "      --gw-client-address ${local.cloudspace_name}-liqo"
         echo ""
         echo "Kubeconfig has been written to: /tmp/${local.cloudspace_name}.kubeconfig"
         exit 0
       }
+
+      wait $ANNOTATOR_PID 2>/dev/null || true
     EOT
   }
 
