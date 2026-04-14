@@ -1,21 +1,28 @@
 # Liqo peering with ardenone-hub.
 #
-# Architecture: Consumer (hub) hosts GatewayServer → Spot GatewayClient connects in
+# Architecture: Spot cluster hosts GatewayServer (Provider) → Hub's GatewayClient connects
 #
-# The hub runs liqo with:
-#   gateway.config.addressOverride = 100.100.51.40  (hub's Tailscale IP, stable)
-#   gateway.service.type           = ClusterIP
+# The spot cluster runs liqo with:
+#   gateway.service.type = LoadBalancer  (Rackspace Spot assigns a public IP)
 #
-# liqoctl peer uses --gw-server-service-location Consumer, which pins the
-# WireGuard GatewayServer to the hub (the local/consumer cluster). The spot
-# cluster's GatewayClient reads the hub's endpoint from the GatewayServer status
-# (addressOverride = 100.100.51.40) and connects via the Tailscale mesh.
+# liqotech peer uses the default --gw-server-service-type LoadBalancer.
+# Rackspace's cloud controller assigns a public IP to the gateway LoadBalancer service.
+# The hub's GatewayClient reads this IP from the GatewayServer status and connects.
+#
+# Note on addressOverride (NOT USED):
+#   bootstrap.tf sets gateway.config.addressOverride=<cloudspace>-liqo and
+#   gateway.service.annotations=tailscale.com/expose,tailscale.com/hostname. In
+#   theory this should make the gateway advertise a Tailscale hostname instead of
+#   the LoadBalancer IP. In practice, Liqo v1.1.2's controller-manager doesn't
+#   receive --gateway-address-override, so addressOverride is inert for per-tenant
+#   gateway services. The LoadBalancer IP is used instead.
 #
 # Flow:
 #   1. Spot joins tailnet (Tailscale operator bootstrap)
-#   2. liqoctl peer creates GatewayServer on HUB (Consumer); hub advertises 100.100.51.40
-#   3. Spot's GatewayClient reads endpoint 100.100.51.40 from GatewayServer status
-#   4. WireGuard tunnel established: spot → hub via Tailscale
+#   2. liqoctl peer creates GatewayServer on SPOT (Provider, LoadBalancer type)
+#   3. Rackspace assigns public IP to the LoadBalancer service
+#   4. Hub's GatewayClient reads public IP from GatewayServer status
+#   5. WireGuard tunnel established: hub → spot via public IP
 #
 # Root cause of prior failures (v17/v18 "Namespace not found"):
 #
@@ -158,11 +165,9 @@ resource "null_resource" "liqo_peer" {
       echo "==> liqo-crd-replicator restarted and ready"
 
       # Peer hub (consumer) with spot (provider).
-      # --gw-server-service-location Consumer pins the WireGuard gateway server to
-      # the hub side. The hub advertises its Tailscale IP (100.100.51.40) via
-      # gateway.config.addressOverride in the liqo installation. The spot cluster's
-      # GatewayClient then connects to 100.100.51.40, which is always reachable via
-      # the Tailscale mesh — no addressOverride DNS resolution needed on the spot side.
+      # The spot cluster's GatewayServer uses a LoadBalancer service type — Rackspace
+      # Spot's cloud controller assigns a public IP, and the hub's GatewayClient
+      # reads it from the GatewayServer status and connects via WireGuard.
       echo "==> Peering hub with ${local.cloudspace_name} (25m timeout)..."
       liqoctl peer \
         --remote-kubeconfig "$SPOT_KUBECONFIG" \
@@ -170,8 +175,7 @@ resource "null_resource" "liqo_peer" {
         --remote-namespace liqo-system \
         --skip-confirm \
         --timeout 25m \
-        --gw-server-service-type ClusterIP \
-        --gw-server-service-location Consumer \
+        --gw-server-service-type LoadBalancer \
       || {
         echo "==> DIAGNOSTIC (post-failure): Spot controller-manager logs (last 150 lines)"
         kubectl --kubeconfig "$SPOT_KUBECONFIG" logs -n liqo-system \
@@ -181,16 +185,14 @@ resource "null_resource" "liqo_peer" {
         echo "==> DIAGNOSTIC: Hub crd-replicator logs (last 50 lines)"
         kubectl logs -n liqo-system deploy/liqo-crd-replicator --tail=50 2>&1 || true
         echo ""
-        echo "==> Peering failed. Check if ${local.cloudspace_name}-liqo is in the tailnet."
-        echo "    Complete manually from ardenone-hub:"
+        echo "==> Peering failed. Manual recovery from ardenone-hub:"
         echo "    KUBECONFIG=/etc/rancher/k3s/k3s.yaml liqoctl peer \\"
         echo "      --remote-kubeconfig /tmp/${local.cloudspace_name}.kubeconfig \\"
         echo "      --namespace liqo-system \\"
         echo "      --remote-namespace liqo-system \\"
         echo "      --skip-confirm \\"
         echo "      --timeout 15m \\"
-        echo "      --gw-server-service-type ClusterIP \\"
-        echo "      --gw-server-service-location Consumer"
+        echo "      --gw-server-service-type LoadBalancer"
         echo ""
         echo "Kubeconfig has been written to: /tmp/${local.cloudspace_name}.kubeconfig"
         exit 0
