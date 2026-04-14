@@ -43,7 +43,7 @@ resource "null_resource" "liqo_peer" {
   count = var.skip_bootstrap ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
-    version    = "17"  # bump to force re-peering
+    version    = "18"  # bump to force re-peering
   }
 
   provisioner "local-exec" {
