@@ -71,6 +71,24 @@ variable "liqo_version" {
   description = "Liqo Helm chart version. Must match ardenone-hub."
 }
 
+variable "skip_liqo" {
+  type        = bool
+  default     = false
+  description = "Skip Liqo installation and peering. Use for standalone clusters that don't federate resources with ardenone-hub."
+}
+
+variable "skip_traefik" {
+  type        = bool
+  default     = false
+  description = "Skip Traefik ingress controller installation. Use for clusters with no user-facing HTTP services."
+}
+
+variable "skip_cert_manager" {
+  type        = bool
+  default     = false
+  description = "Skip cert-manager installation. Typically set together with skip_traefik."
+}
+
 variable "skip_bootstrap" {
   type        = bool
   default     = false
