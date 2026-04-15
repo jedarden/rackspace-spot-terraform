@@ -97,7 +97,7 @@ resource "null_resource" "tailscale" {
 # ---------- Liqo (provider mode -- offers resources to hub) ----------
 
 resource "null_resource" "liqo" {
-  count = var.skip_bootstrap ? 0 : 1
+  count = var.skip_bootstrap || var.skip_liqo ? 0 : 1
   triggers = {
     cloudspace  = local.cloudspace_name
     api_address = "2"  # bump to force re-run with apiServer.address fix
@@ -132,7 +132,7 @@ resource "null_resource" "liqo" {
 # ---------- Traefik (ingress controller) ----------
 
 resource "null_resource" "traefik" {
-  count = var.skip_bootstrap ? 0 : 1
+  count = var.skip_bootstrap || var.skip_traefik ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
   }
@@ -163,7 +163,7 @@ resource "null_resource" "traefik" {
 # ---------- cert-manager (TLS certificates) ----------
 
 resource "null_resource" "cert_manager" {
-  count = var.skip_bootstrap ? 0 : 1
+  count = var.skip_bootstrap || var.skip_cert_manager ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
   }
