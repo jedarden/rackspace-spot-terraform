@@ -3,7 +3,7 @@
 # chicken-and-egg problem (helm/kubernetes providers can't be configured
 # with values that aren't known until apply time).
 #
-# Order: tools -> Tailscale (mesh) -> Liqo (federation) -> Traefik (ingress) -> cert-manager (TLS)
+# Order: tools -> Tailscale (mesh) -> Liqo (federation) -> Traefik (ingress) -> cert-manager (TLS) -> ArgoCD -> App-of-Apps
 
 # Write spot kubeconfig to file for bootstrap and peering.
 resource "local_sensitive_file" "spot_kubeconfig" {
@@ -187,4 +187,101 @@ resource "null_resource" "cert_manager" {
   }
 
   depends_on = [null_resource.install_tools]
+}
+
+# ---------- ArgoCD (GitOps controller) ----------
+
+resource "null_resource" "argocd" {
+  count = var.skip_bootstrap || var.skip_argocd ? 0 : 1
+  triggers = {
+    cloudspace = local.cloudspace_name
+  }
+
+  provisioner "local-exec" {
+    environment = {
+      KUBECONFIG = local_sensitive_file.spot_kubeconfig.filename
+    }
+    command = <<-EOT
+      set -euo pipefail
+      export PATH="/tmp:$PATH"
+
+      echo "==> Installing ArgoCD ${var.argocd_chart_version}"
+      helm repo add argo https://argoproj.github.io/argo-helm
+      helm repo update argo
+
+      helm upgrade --install argocd argo/argo-cd \
+        --namespace argocd --create-namespace \
+        --version "${var.argocd_chart_version}" \
+        --timeout 15m \
+        --wait \
+        --set configs.params."server\.insecure"=true
+
+      echo "==> Creating declarative-config repo secret"
+      kubectl create secret generic declarative-config-repo \
+        --namespace argocd \
+        --from-literal=type=git \
+        --from-literal=url=https://github.com/jedarden/declarative-config \
+        --from-literal=username=jedarden \
+        --from-literal=password="${var.github_token}" \
+        --dry-run=client -o yaml | kubectl apply -f -
+
+      kubectl label secret declarative-config-repo \
+        --namespace argocd \
+        --overwrite \
+        argocd.argoproj.io/secret-type=repository
+
+      echo "==> ArgoCD ready"
+    EOT
+  }
+
+  depends_on = [null_resource.cert_manager, null_resource.traefik]
+}
+
+# ---------- App-of-Apps (hands off to declarative-config) ----------
+
+resource "null_resource" "app_of_apps" {
+  count = var.skip_bootstrap || var.skip_argocd ? 0 : 1
+  triggers = {
+    cloudspace = local.cloudspace_name
+    path       = var.declarative_config_path
+  }
+
+  provisioner "local-exec" {
+    environment = {
+      KUBECONFIG = local_sensitive_file.spot_kubeconfig.filename
+    }
+    command = <<-EOT
+      set -euo pipefail
+
+      echo "==> Applying App-of-Apps for k8s/${var.declarative_config_path}"
+      kubectl apply -f - <<MANIFEST
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: applications-${local.cloudspace_name}
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/jedarden/declarative-config
+    targetRevision: HEAD
+    path: k8s/${var.declarative_config_path}
+    directory:
+      recurse: false
+      include: '*-application.yml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+MANIFEST
+      echo "==> App-of-Apps applied — ArgoCD will sync from declarative-config"
+    EOT
+  }
+
+  depends_on = [null_resource.argocd]
 }
