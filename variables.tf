@@ -114,3 +114,29 @@ variable "cert_manager_version" {
   default     = "v1.17.1"
   description = "cert-manager Helm chart version."
 }
+
+# --- ArgoCD bootstrap ---
+
+variable "skip_argocd" {
+  type        = bool
+  default     = false
+  description = "Skip ArgoCD installation and App-of-Apps bootstrap."
+}
+
+variable "argocd_chart_version" {
+  type        = string
+  default     = "7.8.23"
+  description = "ArgoCD Helm chart version (argo/argo-cd)."
+}
+
+variable "github_token" {
+  type        = string
+  sensitive   = true
+  description = "GitHub PAT for ArgoCD to read jedarden/declarative-config."
+}
+
+variable "declarative_config_path" {
+  type        = string
+  default     = "rs-manager"
+  description = "Subdirectory under k8s/ in declarative-config for the App-of-Apps path."
+}
