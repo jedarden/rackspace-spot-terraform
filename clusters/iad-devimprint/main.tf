@@ -55,12 +55,8 @@ resource "spot_cloudspace" "main" {
   }
 }
 
-# Import the existing nodepool (UUID from node label nodepool.ngpc.rxt.io/name).
-import {
-  to = spot_spotnodepool.workers
-  id = "633096cd-fcaf-45b6-8c1b-2e62461b8652"
-}
-
+# New nodepool — previous pool (633096cd) was destroyed during first apply.
+# Terraform will provision a new gp.vs1.large-iad pool.
 resource "spot_spotnodepool" "workers" {
   cloudspace_name      = spot_cloudspace.main.cloudspace_name
   server_class         = var.server_class
