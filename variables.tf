@@ -28,8 +28,8 @@ variable "kubernetes_version" {
 
 variable "server_class" {
   type        = string
-  default     = "mh.vs1.large-iad"
-  description = "Rackspace Spot server class. Use spotctl serverclasses list to see options."
+  default     = "gp.vs1.medium-iad"
+  description = "Rackspace Spot server class. Use spotctl serverclasses list to see options. Default: gp.vs1.medium-iad (2 CPU, 3.75GB, $0.001/hr)."
 }
 
 variable "node_count" {
@@ -40,7 +40,7 @@ variable "node_count" {
 
 variable "bid_price" {
   type        = number
-  default     = 0.015
+  default     = 0.001
   description = "Bid price per hour. Minimum varies by server class (check spotctl). Default suits mh.vs1.large-iad."
 }
 
