@@ -48,6 +48,11 @@ resource "spot_cloudspace" "main" {
   wait_until_ready   = false
   kubernetes_version = "1.31.1"
   cni                = "calico"
+
+  lifecycle {
+    # Only kubernetes_version and webhook are mutable on an existing cloudspace.
+    ignore_changes = [hacontrol_plane, wait_until_ready, cni, region]
+  }
 }
 
 # Import the existing nodepool (UUID from node label nodepool.ngpc.rxt.io/name).
