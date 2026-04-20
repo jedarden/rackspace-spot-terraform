@@ -35,32 +35,11 @@ variable "bid_price" {
   default = 0.001
 }
 
-# Import the existing iad-devimprint cloudspace rather than recreating it.
-import {
-  to = spot_cloudspace.main
-  id = "iad-devimprint"
-}
-
-resource "spot_cloudspace" "main" {
-  cloudspace_name    = "iad-devimprint"
-  region             = "us-east-iad-1"
-  hacontrol_plane    = false
-  wait_until_ready   = false
-  kubernetes_version = "1.31.1"
-  cni                = "calico"
-
-  lifecycle {
-    # The cloudspace admission webhook only allows kubernetes_version and webhook
-    # field changes, and even kubernetes_version changes require a specific newVersion
-    # format. Ignore all fields post-import — we only manage the nodepool here.
-    ignore_changes = all
-  }
-}
-
-# New nodepool — previous pool (633096cd) was destroyed during first apply.
-# Terraform will provision a new gp.vs1.large-iad pool.
+# Manage only the nodepool — the cloudspace already exists and cannot be
+# modified post-creation via Terraform (admission webhook rejects all changes).
+# The cloudspace_name is passed as a static string; no cloudspace resource needed.
 resource "spot_spotnodepool" "workers" {
-  cloudspace_name      = spot_cloudspace.main.cloudspace_name
+  cloudspace_name      = "iad-devimprint"
   server_class         = var.server_class
   bid_price            = var.bid_price
   desired_server_count = var.node_count
