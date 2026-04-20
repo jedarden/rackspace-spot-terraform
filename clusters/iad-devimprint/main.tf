@@ -32,7 +32,8 @@ variable "node_count" {
 
 variable "bid_price" {
   type    = number
-  default = 0.001
+  default = 0.010
+  description = "Bid price per hour. gp.vs1.large-iad minimum is $0.010/hr."
 }
 
 # Manage only the nodepool — the cloudspace already exists and cannot be
