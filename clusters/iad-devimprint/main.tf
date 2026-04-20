@@ -50,8 +50,10 @@ resource "spot_cloudspace" "main" {
   cni                = "calico"
 
   lifecycle {
-    # Only kubernetes_version and webhook are mutable on an existing cloudspace.
-    ignore_changes = [hacontrol_plane, wait_until_ready, cni, region]
+    # The cloudspace admission webhook only allows kubernetes_version and webhook
+    # field changes, and even kubernetes_version changes require a specific newVersion
+    # format. Ignore all fields post-import — we only manage the nodepool here.
+    ignore_changes = all
   }
 }
 
