@@ -20,20 +20,19 @@ variable "rackspace_spot_token" {
 
 variable "server_class" {
   type        = string
-  default     = "gp.vs1.large-iad"
-  description = "Node server class. Default: gp.vs1.large-iad (4 CPU, 15GB, $0.001/hr) — sized for devimprint pipeline."
+  default     = "gp.vs1.medium-iad"
+  description = "Node server class. Default: gp.vs1.medium-iad (2 CPU, 3.75GB, $0.001/hr)."
 }
 
 variable "node_count" {
   type        = number
-  default     = 1
+  default     = 3
   description = "Desired spot node count."
 }
 
 variable "bid_price" {
   type    = number
-  default = 0.010
-  description = "Bid price per hour. gp.vs1.large-iad minimum is $0.010/hr."
+  default = 0.001
 }
 
 # Manage only the nodepool — the cloudspace already exists and cannot be
