@@ -35,6 +35,24 @@ variable "bid_price" {
   default = 0.001
 }
 
+variable "postgres_server_class" {
+  type        = string
+  default     = "mh.vs1.large-ord"
+  description = "Dedicated Postgres node server class. Default: mh.vs1.large-ord (4 CPU, 30GB, $0.006/hr at p50)."
+}
+
+variable "postgres_bid_price" {
+  type        = number
+  default     = 0.006
+  description = "Bid price for dedicated Postgres node at p50 market price (per cg-1i8t)."
+}
+
+variable "postgres_node_count" {
+  type        = number
+  default     = 1
+  description = "Dedicated Postgres node count (instances: 1 per cg-25cp decision)."
+}
+
 # Manage only the nodepool — the cloudspace already exists and cannot be
 # modified post-creation via Terraform (admission webhook rejects all changes).
 # The cloudspace_name is passed as a static string; no cloudspace resource needed.
@@ -47,4 +65,18 @@ resource "spot_spotnodepool" "workers" {
   server_class         = var.server_class
   bid_price            = var.bid_price
   desired_server_count = var.node_count
+}
+
+# Dedicated Postgres nodepool for commitgraph v2 redesign (Phase 0).
+# This is the sole write target for clone-worker rollup upserts.
+# Per cg-1i8t: bid at p50 ($0.006/hr) to minimize preemption risk given
+# the no-fallback constraint (old pipeline decommissioned 2026-08-05).
+# Per cg-25cp: instances: 1 with synchronous replication for zero-data-loss.
+# Per cg-2ypl: if mh.vs1.large-ord fails to fulfill after 15 minutes,
+# fall back to ch.vs1.large-ord (same capacity, compute-optimized).
+resource "spot_spotnodepool" "postgres" {
+  cloudspace_name      = "ord-devimprint"
+  server_class         = var.postgres_server_class
+  bid_price            = var.postgres_bid_price
+  desired_server_count = var.postgres_node_count
 }
