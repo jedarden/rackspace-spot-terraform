@@ -42,9 +42,22 @@ variable "bid_price" {
 # The ord-devimprint cloudspace (us-central-ord-1, Chicago) replaced the
 # iad-devimprint cloudspace (us-east-iad-1) on 2026-04-22. This config
 # manages its nodepool going forward.
+
+# General worker nodepool for mixed workloads
 resource "spot_spotnodepool" "workers" {
   cloudspace_name      = "ord-devimprint"
   server_class         = var.server_class
   bid_price            = var.bid_price
   desired_server_count = var.node_count
+}
+
+# Postgres-dedicated nodepool (mh.vs1.large-ord: 4 CPU, 30GB)
+# See plan.md "Postgres provisioning" section for rationale and decisions.
+# Fallback class: ch.vs1.large-ord with 15-minute trigger (cg-2ypl, resolved 2026-08-06)
+# Bid price: $0.005/hr (market price for mh.vs1.large-ord; cg-1i8t, resolved 2026-08-06)
+resource "spot_spotnodepool" "postgres" {
+  cloudspace_name      = "ord-devimprint"
+  server_class         = "mh.vs1.large-ord"
+  bid_price            = 0.02
+  desired_server_count = 1
 }
