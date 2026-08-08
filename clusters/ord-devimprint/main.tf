@@ -54,7 +54,7 @@ resource "spot_spotnodepool" "workers" {
 # Postgres-dedicated nodepool (mh.vs1.large-ord: 4 CPU, 30GB)
 # See plan.md "Postgres provisioning" section for rationale and decisions.
 # Fallback class: ch.vs1.large-ord with 15-minute trigger (cg-2ypl, resolved 2026-08-06)
-# Bid price: $0.005/hr (market price for mh.vs1.large-ord; cg-1i8t, resolved 2026-08-06)
+# Bid price: $0.02/hr (adjusted from $0.005/hr to meet Rackspace Spot API minimum requirements; cg-52hik, resolved 2026-08-08)
 resource "spot_spotnodepool" "postgres" {
   cloudspace_name      = "ord-devimprint"
   server_class         = "mh.vs1.large-ord"
