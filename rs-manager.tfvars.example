@@ -1,0 +1,38 @@
+# Example tfvars file for rs-manager cluster
+# Copy this file to rs-manager.tfvars and fill in the values, OR better yet:
+#   - Store secrets in OpenBao at secret/rackspace-spot-terraform/rs-manager
+#   - Use scripts/tf-apply.sh to run terraform apply (fetches secrets from OpenBao)
+#
+# This file is for documentation/reference only — do not commit actual values.
+
+cloudspace_name = "rs-manager"
+
+# Node pool configuration
+server_class = "gp.vs1.medium-iad"
+node_count   = 3
+bid_price    = 0.001
+
+# No Liqo — rs-manager is a management cluster, not a compute provider
+skip_liqo = true
+
+# Cluster versions
+kubernetes_version        = "1.31.1"
+tailscale_operator_version = "1.94.2"
+
+# Bootstrap tool/chart versions
+helm_version         = "3.17.0"
+traefik_version      = "34.3.0"
+cert_manager_version = "v1.17.1"
+argocd_chart_version = "7.8.23"
+
+# GitOps path
+declarative_config_path = "rs-manager"
+
+# Credentials (sensitive — store these in OpenBao, not in plaintext)
+# Use bao kv put secret/rackspace-spot-terraform/rs-manager \
+#   rackspace_spot_token="your-token" \
+#   tailscale_oauth_client_id="your-client-id" \
+#   tailscale_oauth_client_secret="your-client-secret" \
+#   github_token="ghp_your-token"
+#
+# Then run: ./scripts/tf-apply.sh [terraform-args...]
