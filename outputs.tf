@@ -11,6 +11,11 @@ output "kubeconfig" {
   sensitive = true
 }
 
+output "estimated_hourly_cost" {
+  value       = var.node_count * var.bid_price
+  description = "Estimated hourly cost based on the bid price, not necessarily the clearing price."
+}
+
 data "spot_kubeconfig" "main" {
   cloudspace_name = spot_cloudspace.main.cloudspace_name
   depends_on      = [spot_spotnodepool.workers]
