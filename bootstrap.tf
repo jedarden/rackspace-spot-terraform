@@ -30,19 +30,24 @@ resource "null_resource" "install_tools" {
       if ! command -v helm &>/dev/null && [ ! -x /tmp/helm ]; then
         echo "==> Installing helm"
         wget -q "https://get.helm.sh/helm-v${var.helm_version}-linux-amd64.tar.gz" -O /tmp/helm.tar.gz
+        wget -q "https://get.helm.sh/helm-v${var.helm_version}-linux-amd64.tar.gz.sha256sum" -O /tmp/helm.tar.gz.sha256sum
+        sha256sum -c --strict --status /tmp/helm.tar.gz.sha256sum
         tar xzf /tmp/helm.tar.gz -C /tmp/
         mv /tmp/linux-amd64/helm /tmp/helm
         chmod +x /tmp/helm
-        rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
+        rm -rf /tmp/helm.tar.gz /tmp/linux-amd64 /tmp/helm.tar.gz.sha256sum
       fi
 
       # liqoctl
       if ! command -v liqoctl &>/dev/null && [ ! -x /tmp/liqoctl ]; then
         echo "==> Installing liqoctl"
         wget -q "https://github.com/liqotech/liqo/releases/download/${var.liqo_version}/liqoctl-linux-amd64.tar.gz" -O /tmp/liqoctl.tar.gz
+        wget -q "https://github.com/liqotech/liqo/releases/download/${var.liqo_version}/checksums.txt" -O /tmp/liqo-checksums.txt
+        grep "liqoctl-linux-amd64.tar.gz" /tmp/liqo-checksums.txt > /tmp/liqoctl.tar.gz.sha256sum
+        sha256sum -c --strict --status /tmp/liqoctl.tar.gz.sha256sum
         tar xzf /tmp/liqoctl.tar.gz -C /tmp/
         chmod +x /tmp/liqoctl
-        rm -f /tmp/liqoctl.tar.gz
+        rm -f /tmp/liqoctl.tar.gz /tmp/liqo-checksums.txt /tmp/liqoctl.tar.gz.sha256sum
       fi
 
       export PATH="/tmp:$PATH"
