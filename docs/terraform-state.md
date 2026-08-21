@@ -18,9 +18,11 @@ bucket, with an isolated state object for each Terraform root:
 | `clusters/ord-devimprint` | `state/ord-devimprint/terraform.tfstate` |
 
 The backend also uses the sibling `<state object>.tflock` object for native
-Terraform locking. The Garage endpoint is reached through the independent
-cluster's Tailscale-only ingress, and path-style addressing is required by
-Garage.
+Terraform locking. The Garage S3 service is reached directly over the
+independent cluster's Tailscale service at
+`http://garage-ardenone-cluster.tail1b1987.ts.net:3900`; Tailscale provides
+transport encryption, while Garage's S3 service is HTTP. Path-style
+addressing is required by Garage.
 
 ## Backend prerequisites
 
