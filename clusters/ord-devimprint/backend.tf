@@ -4,10 +4,11 @@ terraform {
     key    = "state/ord-devimprint/terraform.tfstate"
     region = "garage"
 
-    # Keep state on the independently-provisioned cluster's Tailscale-only
-    # Garage ingress; Garage does not provide virtual-host bucket DNS.
+    # Garage does not provide virtual-host bucket DNS. Use the direct
+    # Tailscale-only S3 service on the independently-provisioned cluster.
+    # Tailscale provides transport encryption; Garage's service itself is HTTP.
     endpoints = {
-      s3 = "https://garage-s3-ardenone-cluster-ts.ardenone.com"
+      s3 = "http://garage-ardenone-cluster.tail1b1987.ts.net:3900"
     }
     use_path_style = true
     use_lockfile   = true
