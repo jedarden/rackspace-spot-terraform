@@ -105,7 +105,7 @@ resource "null_resource" "liqo" {
   count = var.skip_bootstrap || var.skip_liqo ? 0 : 1
   triggers = {
     cloudspace  = local.cloudspace_name
-    api_address = "2"  # bump to force re-run with apiServer.address fix
+    api_address = "2" # bump to force re-run with apiServer.address fix
   }
 
   provisioner "local-exec" {
