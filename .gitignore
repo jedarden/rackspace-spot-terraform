@@ -36,3 +36,10 @@ override.tf.json
 .terraformrc
 terraform.rc
 rs-manager.tfvars
+
+# credentials, plans and state — never commit (history scrubbed 2026-08-29)
+.token
+**/.token
+tfplan
+**/tfplan
+.beads/traces/
