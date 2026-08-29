@@ -31,7 +31,7 @@ declarative_config_path = "rs-manager"
 # Credentials (sensitive — store these in OpenBao, not in plaintext)
 # Seed them with ./scripts/seed-openbao.sh, which writes
 #   secret/rs-manager/rackspace-spot-terraform/credentials
-# with keys rackspace_spot_token, tailscale_oauth_client_id,
+# with keys token (the Spot refresh token), tailscale_oauth_client_id,
 # tailscale_oauth_client_secret, github_token — via a mode-600 @file, never argv.
 #
 # Then run: ./scripts/tf-apply.sh [terraform-args...]

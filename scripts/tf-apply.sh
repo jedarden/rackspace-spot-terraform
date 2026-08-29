@@ -11,11 +11,13 @@
 #
 # Secret layout (rs-manager OpenBao owns the secret/rs-manager/* prefix):
 #   secret/rs-manager/rackspace-spot-terraform/credentials
-#     rackspace_spot_token          org-level Spot refresh token (shared by every cloudspace)
+#     token                         org-level Spot refresh token (shared by every cloudspace)
+#     token-name                    the console name of that token (self-description, not read here)
 #     tailscale_oauth_client_id
 #     tailscale_oauth_client_secret
 #     github_token
 # Override with TF_SECRET_PATH if a cloudspace ever needs its own credential set.
+# (The Spot token key was `rackspace_spot_token` before 2026-08-29; still read as a fallback.)
 
 set -euo pipefail
 
@@ -46,14 +48,14 @@ SECRETS_JSON=$(bao kv get -format=json "${SECRET_PATH}" 2>/dev/null || {
 })
 
 # Extract individual secrets and export as TF_VAR_*
-export TF_VAR_rackspace_spot_token=$(echo "${SECRETS_JSON}" | jq -r '.data.data.rackspace_spot_token // empty')
+export TF_VAR_rackspace_spot_token=$(echo "${SECRETS_JSON}" | jq -r '.data.data.token // .data.data.rackspace_spot_token // empty')
 export TF_VAR_tailscale_oauth_client_id=$(echo "${SECRETS_JSON}" | jq -r '.data.data.tailscale_oauth_client_id // empty')
 export TF_VAR_tailscale_oauth_client_secret=$(echo "${SECRETS_JSON}" | jq -r '.data.data.tailscale_oauth_client_secret // empty')
 export TF_VAR_github_token=$(echo "${SECRETS_JSON}" | jq -r '.data.data.github_token // empty')
 
 # Verify all required secrets are present
 REQUIRED_SECRETS=(
-  "rackspace_spot_token"
+  "rackspace_spot_token"   # sourced from key `token` (fallback `rackspace_spot_token`)
   "tailscale_oauth_client_id"
   "tailscale_oauth_client_secret"
   "github_token"

@@ -18,7 +18,8 @@ terraform credentials live under it like every other rs-manager-hosted secret:
 
 | Path | Key | What |
 |---|---|---|
-| `secret/rs-manager/rackspace-spot-terraform/credentials` | `rackspace_spot_token` | Org-level Rackspace Spot refresh token — shared by every cloudspace this module manages |
+| `secret/rs-manager/rackspace-spot-terraform/credentials` | `token` | Org-level Rackspace Spot refresh token — shared by every cloudspace this module manages (`rackspace_spot_token` is still read as a fallback) |
+| | `token-name` | Console name of that token, for self-description; not read by the scripts |
 | | `tailscale_oauth_client_id` / `tailscale_oauth_client_secret` | Tailscale operator OAuth client |
 | | `github_token` | Read access for the ArgoCD bootstrap |
 
@@ -28,7 +29,7 @@ per-cloudspace credential set). Rotate a single key with `bao kv patch`, not
 
 ```bash
 # paste the new value on stdin, then Ctrl-D — never as an argument
-bao kv patch secret/rs-manager/rackspace-spot-terraform/credentials rackspace_spot_token=-
+bao kv patch secret/rs-manager/rackspace-spot-terraform/credentials token=-
 ```
 
 Prior location (until 2026-08-29): `secret/rackspace-spot-terraform/rs-manager` —

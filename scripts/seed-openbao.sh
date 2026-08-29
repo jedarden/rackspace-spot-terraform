@@ -103,13 +103,16 @@ PAYLOAD="$(mktemp -t seed-openbao.XXXXXX.json)"
 trap 'rm -f "${PAYLOAD}"' EXIT
 export RACKSPACE_SPOT_TOKEN TAILSCALE_CLIENT_ID TAILSCALE_CLIENT_SECRET GITHUB_TOKEN
 jq -n '{
-  rackspace_spot_token:          $ENV.RACKSPACE_SPOT_TOKEN,
+  token:                         $ENV.RACKSPACE_SPOT_TOKEN,
   tailscale_oauth_client_id:     $ENV.TAILSCALE_CLIENT_ID,
   tailscale_oauth_client_secret: $ENV.TAILSCALE_CLIENT_SECRET,
   github_token:                  $ENV.GITHUB_TOKEN
 }' > "${PAYLOAD}"
 
-bao kv put "${SECRET_PATH}" @"${PAYLOAD}" > /dev/null || {
+# kv patch keeps keys this script does not manage (e.g. token-name); falls back
+# to put when the path does not exist yet.
+bao kv patch "${SECRET_PATH}" @"${PAYLOAD}" > /dev/null 2>&1 \
+  || bao kv put "${SECRET_PATH}" @"${PAYLOAD}" > /dev/null || {
   echo "Error: Failed to write secrets to OpenBao" >&2
   exit 1
 }
