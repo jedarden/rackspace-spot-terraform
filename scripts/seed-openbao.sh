@@ -95,19 +95,39 @@ fi
 # Write to OpenBao using bao CLI.
 # The values go through a mode-600 temp file passed as @file so they never appear
 # in argv (ps, shell history, transcripts). jq reads them from the environment.
+#
+# Idempotent: keys that already exist at SECRET_PATH are left alone (so a token
+# rotated in the UI is never clobbered by a stale tfvars value). Set
+# SEED_OVERWRITE=1 to replace every key from this run's values.
 echo ""
 echo "Writing secrets to OpenBao at ${SECRET_PATH}..."
+
+EXISTING_KEYS="$(bao kv get -format=json "${SECRET_PATH}" 2>/dev/null | jq -r '.data.data | keys[]' 2>/dev/null || true)"
+skip() { [[ "${SEED_OVERWRITE:-0}" != "1" ]] && grep -qx "$1" <<< "${EXISTING_KEYS}"; }
+for k in token tailscale_oauth_client_id tailscale_oauth_client_secret github_token; do
+  skip "$k" && echo "  keeping existing key: $k (SEED_OVERWRITE=1 to replace)"
+done
 
 umask 077
 PAYLOAD="$(mktemp -t seed-openbao.XXXXXX.json)"
 trap 'rm -f "${PAYLOAD}"' EXIT
 export RACKSPACE_SPOT_TOKEN TAILSCALE_CLIENT_ID TAILSCALE_CLIENT_SECRET GITHUB_TOKEN
-jq -n '{
-  token:                         $ENV.RACKSPACE_SPOT_TOKEN,
-  tailscale_oauth_client_id:     $ENV.TAILSCALE_CLIENT_ID,
-  tailscale_oauth_client_secret: $ENV.TAILSCALE_CLIENT_SECRET,
-  github_token:                  $ENV.GITHUB_TOKEN
-}' > "${PAYLOAD}"
+jq -n \
+  --argjson keep_token "$(skip token && echo true || echo false)" \
+  --argjson keep_ts_id "$(skip tailscale_oauth_client_id && echo true || echo false)" \
+  --argjson keep_ts_secret "$(skip tailscale_oauth_client_secret && echo true || echo false)" \
+  --argjson keep_gh "$(skip github_token && echo true || echo false)" '
+  ({}
+   + (if $keep_token     then {} else {token:                         $ENV.RACKSPACE_SPOT_TOKEN} end)
+   + (if $keep_ts_id     then {} else {tailscale_oauth_client_id:     $ENV.TAILSCALE_CLIENT_ID} end)
+   + (if $keep_ts_secret then {} else {tailscale_oauth_client_secret: $ENV.TAILSCALE_CLIENT_SECRET} end)
+   + (if $keep_gh        then {} else {github_token:                  $ENV.GITHUB_TOKEN} end))
+' > "${PAYLOAD}"
+
+if [[ "$(jq 'length' "${PAYLOAD}")" == "0" ]]; then
+  echo "Nothing to write — every key already exists at ${SECRET_PATH}."
+  exit 0
+fi
 
 # kv patch keeps keys this script does not manage (e.g. token-name); falls back
 # to put when the path does not exist yet.
