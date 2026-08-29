@@ -1,6 +1,6 @@
 # Example tfvars file for rs-manager cluster
 # Copy this file to rs-manager.tfvars and fill in the values, OR better yet:
-#   - Store secrets in OpenBao at secret/rackspace-spot-terraform/rs-manager
+#   - Store secrets in OpenBao at secret/rs-manager/rackspace-spot-terraform/credentials
 #   - Use scripts/tf-apply.sh to run terraform apply (fetches secrets from OpenBao)
 #
 # This file is for documentation/reference only — do not commit actual values.
@@ -29,10 +29,9 @@ argocd_chart_version = "7.8.23"
 declarative_config_path = "rs-manager"
 
 # Credentials (sensitive — store these in OpenBao, not in plaintext)
-# Use bao kv put secret/rackspace-spot-terraform/rs-manager \
-#   rackspace_spot_token="your-token" \
-#   tailscale_oauth_client_id="your-client-id" \
-#   tailscale_oauth_client_secret="your-client-secret" \
-#   github_token="ghp_your-token"
+# Seed them with ./scripts/seed-openbao.sh, which writes
+#   secret/rs-manager/rackspace-spot-terraform/credentials
+# with keys rackspace_spot_token, tailscale_oauth_client_id,
+# tailscale_oauth_client_secret, github_token — via a mode-600 @file, never argv.
 #
 # Then run: ./scripts/tf-apply.sh [terraform-args...]

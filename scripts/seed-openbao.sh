@@ -7,7 +7,9 @@
 # This script:
 #   1. Reads existing secrets from rs-manager.tfvars (if present)
 #   2. Prompts for any missing secrets
-#   3. Writes them to OpenBao at secret/rackspace-spot-terraform/rs-manager
+#   3. Writes them to OpenBao at secret/rs-manager/rackspace-spot-terraform/credentials
+#      (override with TF_SECRET_PATH). Values travel to bao via a mode-600 @file,
+#      never as command-line arguments, and are never echoed back.
 #
 # After seeding:
 #   - Delete rs-manager.tfvars (gitignored, single-point-of-failure)
@@ -26,7 +28,7 @@ if [[ -z "${BAO_TOKEN:-}" ]]; then
   exit 1
 fi
 
-SECRET_PATH="secret/rackspace-spot-terraform/rs-manager"
+SECRET_PATH="${TF_SECRET_PATH:-secret/rs-manager/rackspace-spot-terraform/credentials}"
 TFVARS_FILE="rs-manager.tfvars"
 
 echo "=== Seeding Rackspace Spot Terraform secrets to OpenBao ==="
@@ -90,32 +92,43 @@ if [[ -z "${RACKSPACE_SPOT_TOKEN}" ]] || [[ -z "${TAILSCALE_CLIENT_ID}" ]] || \
   exit 1
 fi
 
-# Write to OpenBao using bao CLI
+# Write to OpenBao using bao CLI.
+# The values go through a mode-600 temp file passed as @file so they never appear
+# in argv (ps, shell history, transcripts). jq reads them from the environment.
 echo ""
 echo "Writing secrets to OpenBao at ${SECRET_PATH}..."
 
-bao kv put "${SECRET_PATH}" \
-  rackspace_spot_token="${RACKSPACE_SPOT_TOKEN}" \
-  tailscale_oauth_client_id="${TAILSCALE_CLIENT_ID}" \
-  tailscale_oauth_client_secret="${TAILSCALE_CLIENT_SECRET}" \
-  github_token="${GITHUB_TOKEN}" || {
+umask 077
+PAYLOAD="$(mktemp -t seed-openbao.XXXXXX.json)"
+trap 'rm -f "${PAYLOAD}"' EXIT
+export RACKSPACE_SPOT_TOKEN TAILSCALE_CLIENT_ID TAILSCALE_CLIENT_SECRET GITHUB_TOKEN
+jq -n '{
+  rackspace_spot_token:          $ENV.RACKSPACE_SPOT_TOKEN,
+  tailscale_oauth_client_id:     $ENV.TAILSCALE_CLIENT_ID,
+  tailscale_oauth_client_secret: $ENV.TAILSCALE_CLIENT_SECRET,
+  github_token:                  $ENV.GITHUB_TOKEN
+}' > "${PAYLOAD}"
+
+bao kv put "${SECRET_PATH}" @"${PAYLOAD}" > /dev/null || {
   echo "Error: Failed to write secrets to OpenBao" >&2
   exit 1
 }
+rm -f "${PAYLOAD}"
 
 echo "✓ Secrets successfully written to OpenBao"
 
-# Verify by reading back
+# Verify by property (version/timestamp), never by printing the values back
 echo ""
-echo "Verifying secrets were written correctly..."
-bao kv get "${SECRET_PATH}" || {
-  echo "Warning: Could not verify secrets (check manually with: bao kv get ${SECRET_PATH})" >&2
+echo "Verifying write (metadata only)..."
+bao kv metadata get -format=json "${SECRET_PATH}" \
+  | jq -r '"  version \(.data.current_version) written \(.data.updated_time)"' || {
+  echo "Warning: Could not read metadata (check manually with: bao kv metadata get ${SECRET_PATH})" >&2
 }
 
 echo ""
 echo "=== Next steps ==="
-echo "1. Verify secrets in OpenBao:"
-echo "   bao kv get ${SECRET_PATH}"
+echo "1. Verify secrets in OpenBao (metadata only — never kv get, it prints the values):"
+echo "   bao kv metadata get ${SECRET_PATH}"
 echo ""
 echo "2. Test the terraform apply wrapper:"
 echo "   ./scripts/tf-apply.sh plan"

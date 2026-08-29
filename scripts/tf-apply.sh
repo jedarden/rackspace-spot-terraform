@@ -5,8 +5,17 @@
 # Usage: ./scripts/tf-apply.sh [terraform-args...]
 #
 # Requires:
-#   - BAO_TOKEN environment variable (OpenBao token with read access to secret/rackspace-spot-terraform/*)
+#   - BAO_TOKEN environment variable (rs-manager OpenBao token with read access to
+#     secret/rs-manager/rackspace-spot-terraform/*)
 #   - bao CLI in PATH (installed on ex44 and lab servers)
+#
+# Secret layout (rs-manager OpenBao owns the secret/rs-manager/* prefix):
+#   secret/rs-manager/rackspace-spot-terraform/credentials
+#     rackspace_spot_token          org-level Spot refresh token (shared by every cloudspace)
+#     tailscale_oauth_client_id
+#     tailscale_oauth_client_secret
+#     github_token
+# Override with TF_SECRET_PATH if a cloudspace ever needs its own credential set.
 
 set -euo pipefail
 
@@ -21,8 +30,8 @@ if [[ -z "${BAO_TOKEN:-}" ]]; then
   exit 1
 fi
 
-# Path in OpenBao where secrets are stored
-SECRET_PATH="secret/rackspace-spot-terraform/rs-manager"
+# Path in OpenBao where secrets are stored (see header for the layout)
+SECRET_PATH="${TF_SECRET_PATH:-secret/rs-manager/rackspace-spot-terraform/credentials}"
 
 echo "Fetching secrets from OpenBao: ${SECRET_PATH}"
 
