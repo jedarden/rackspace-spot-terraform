@@ -58,6 +58,7 @@ done
 case "$*" in
   'create namespace '*|'create secret generic '*) printf 'apiVersion: v1\nkind: ConfigMap\n' ;;
   'apply -f -') cat >/dev/null ;;
+  'rollout restart deployment/operator '*) ;;
   'rollout status deployment/operator '*) ;;
   *) echo "unexpected kubectl command: $*" >&2; exit 1 ;;
 esac
@@ -154,6 +155,10 @@ if grep -Fq 'left the following resources in state' "$temp_dir/retry.log"; then
 fi
 grep -Fq 'upgrade --install tailscale-operator tailscale/tailscale-operator' "$COMMAND_LOG" ||
   fail 'the retry did not complete the Tailscale bootstrap command'
+restart_line="$(grep -n -F 'kubectl|rollout restart deployment/operator --namespace tailscale' "$COMMAND_LOG" | head -1 | cut -d: -f1)"
+status_line="$(grep -n -F 'kubectl|rollout status deployment/operator --namespace tailscale --timeout=5m' "$COMMAND_LOG" | head -1 | cut -d: -f1)"
+[[ -n "$restart_line" && -n "$status_line" ]] || fail 'the retry did not restart and wait for the Tailscale operator'
+(( restart_line < status_line )) || fail 'the Tailscale operator rollout was checked before it was restarted'
 assert_absent "$kubeconfig"
 if compgen -G "$temp_dir/tmp/tailscale-operator-oauth.*" >/dev/null; then
   fail 'the OAuth environment file was left behind after retry and destroy'

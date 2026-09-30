@@ -73,6 +73,10 @@ resource "null_resource" "tailscale" {
   count = var.skip_bootstrap ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
+    # Store one-way fingerprints in state so credential changes reapply the
+    # Secret and operator without persisting the raw credential in triggers.
+    tailscale_oauth_client_id_sha256     = nonsensitive(sha256(var.tailscale_oauth_client_id))
+    tailscale_oauth_client_secret_sha256 = nonsensitive(sha256(var.tailscale_oauth_client_secret))
   }
 
   provisioner "local-exec" {
@@ -190,6 +194,8 @@ resource "null_resource" "argocd" {
   count = var.skip_bootstrap || var.skip_argocd ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
+    # A rotated PAT must rewrite the in-cluster repository Secret.
+    github_token_sha256 = nonsensitive(sha256(var.github_token))
   }
 
   provisioner "local-exec" {

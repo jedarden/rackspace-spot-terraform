@@ -32,4 +32,7 @@ helm upgrade --install tailscale-operator tailscale/tailscale-operator \
   --set-json 'operatorConfig.defaultTags=["tag:k8s-operator"]' \
   --set-json 'proxyConfig.defaultTags=["tag:k8s","tag:spot"]'
 
+# The chart may not roll pods when an existing Secret changes. Restart the
+# operator after updating operator-oauth so it loads the new credentials.
+kubectl rollout restart deployment/operator --namespace tailscale
 kubectl rollout status deployment/operator --namespace tailscale --timeout=5m

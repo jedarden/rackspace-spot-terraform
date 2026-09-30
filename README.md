@@ -113,7 +113,12 @@ export BAO_TOKEN
 ./scripts/seed-openbao.sh
 ```
 
-This writes credentials to OpenBao via stdin only - values never appear in argv, logs, or commits.
+This writes credentials through a mode-600 temporary file passed to OpenBao;
+values never appear in argv, logs, or commits.
+
+For routine replacement, incident revocation, dependent Terraform reapplication,
+validation, and retirement of old OpenBao versions, follow the
+[credential rotation and revocation runbook](docs/credential-rotation.md).
 
 ## Plan/Apply Execution
 

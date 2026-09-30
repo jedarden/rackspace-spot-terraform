@@ -59,6 +59,12 @@ set -euo pipefail
   exit 1
 }
 printf 'bao|%s\n' "$*" >>"$CALL_LOG"
+if [[ "${MOCK_ROTATION:-initial}" == rotated ]]; then
+  cat <<'JSON'
+{"data":{"data":{"token":"rotated-spot-sentinel","tailscale_oauth_client_id":"rotated-ts-client-sentinel","tailscale_oauth_client_secret":"rotated-ts-secret-sentinel","github_token":"rotated-github-secret-sentinel"}}}
+JSON
+  exit 0
+fi
 cat <<'JSON'
 {"data":{"data":{"token":"spot-secret-sentinel","tailscale_oauth_client_id":"ts-client-sentinel","tailscale_oauth_client_secret":"ts-secret-sentinel","github_token":"github-secret-sentinel"}}}
 JSON
@@ -109,12 +115,19 @@ fi
   echo 'ambient Terraform CLI arguments reached a cluster operation' >&2
   exit 1
 }
-[[ "${TF_VAR_rackspace_spot_token:-}" == 'spot-secret-sentinel' ]] || exit 1
-[[ "${TF_VAR_tailscale_oauth_client_id:-}" == 'ts-client-sentinel' ]] || exit 1
-[[ "${TF_VAR_tailscale_oauth_client_secret:-}" == 'ts-secret-sentinel' ]] || exit 1
-[[ "${TF_VAR_github_token:-}" == 'github-secret-sentinel' ]] || exit 1
+if [[ "${MOCK_ROTATION:-initial}" == rotated ]]; then
+  [[ "${TF_VAR_rackspace_spot_token:-}" == 'rotated-spot-sentinel' ]] || exit 1
+  [[ "${TF_VAR_tailscale_oauth_client_id:-}" == 'rotated-ts-client-sentinel' ]] || exit 1
+  [[ "${TF_VAR_tailscale_oauth_client_secret:-}" == 'rotated-ts-secret-sentinel' ]] || exit 1
+  [[ "${TF_VAR_github_token:-}" == 'rotated-github-secret-sentinel' ]] || exit 1
+else
+  [[ "${TF_VAR_rackspace_spot_token:-}" == 'spot-secret-sentinel' ]] || exit 1
+  [[ "${TF_VAR_tailscale_oauth_client_id:-}" == 'ts-client-sentinel' ]] || exit 1
+  [[ "${TF_VAR_tailscale_oauth_client_secret:-}" == 'ts-secret-sentinel' ]] || exit 1
+  [[ "${TF_VAR_github_token:-}" == 'github-secret-sentinel' ]] || exit 1
+fi
 case "$*" in
-  *spot-secret-sentinel*|*ts-client-sentinel*|*ts-secret-sentinel*|*github-secret-sentinel*)
+  *spot-secret-sentinel*|*ts-client-sentinel*|*ts-secret-sentinel*|*github-secret-sentinel*|*rotated-spot-sentinel*|*rotated-ts-client-sentinel*|*rotated-ts-secret-sentinel*|*rotated-github-secret-sentinel*)
     echo 'provider secret leaked into Terraform arguments' >&2
     exit 1
     ;;
@@ -148,6 +161,27 @@ assert_contains "$(cat "$CALL_LOG")" '-lockfile=readonly'
 if grep -Fq 'bao|' "$CALL_LOG"; then
   fail 'init fetched provider credentials from OpenBao'
 fi
+
+# A later operation must fetch the newly rotated OpenBao values. The fake
+# Terraform process accepts only the replacement values in this phase.
+: >"$CALL_LOG"
+export MOCK_ROTATION=rotated
+rotation_output="$("$fixture/scripts/tf-cluster.sh" ord-devimprint plan -var=node_count=8 2>&1)" || {
+  echo "$rotation_output" >&2
+  fail 'root plan did not load rotated credentials from OpenBao'
+}
+for secret in rotated-spot-sentinel rotated-ts-client-sentinel rotated-ts-secret-sentinel rotated-github-secret-sentinel; do
+  assert_secret_absent "$rotation_output" "$secret"
+done
+rotated_calls="$(cat "$CALL_LOG")"
+rotated_bao_line="$(grep -n '^bao|' <<<"$rotated_calls" | cut -d: -f1)"
+rotated_plan_line="$(grep -n '^terraform-run|plan ' <<<"$rotated_calls" | cut -d: -f1)"
+[[ -n "$rotated_bao_line" && -n "$rotated_plan_line" ]] || fail 'rotated plan did not fetch OpenBao and invoke Terraform'
+(( rotated_bao_line < rotated_plan_line )) || fail 'rotated plan did not fetch credentials before Terraform'
+for secret in rotated-spot-sentinel rotated-ts-client-sentinel rotated-ts-secret-sentinel rotated-github-secret-sentinel; do
+  assert_secret_absent "$rotated_calls" "$secret"
+done
+unset MOCK_ROTATION
 
 # Plan initializes first, then fetches OpenBao secrets, then invokes Terraform
 # with the fixed lock timeout. No credential value may appear in output or argv.
@@ -220,4 +254,4 @@ fi
 assert_contains "$output" 'unexpected state key'
 [[ ! -s "$CALL_LOG" ]] || fail 'state key mismatch reached Terraform or OpenBao'
 
-echo 'PASS: cluster backend selection, init order, lock timeout, secret redaction, and interactive apply safeguards'
+echo 'PASS: cluster backend selection, init order, OpenBao credential rotation, secret redaction, and interactive apply safeguards'

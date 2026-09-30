@@ -116,10 +116,13 @@ run "plans_bootstrap_components_and_contracts" {
   assert {
     condition = (
       null_resource.tailscale[0].triggers.cloudspace == "acceptance-cluster" &&
+      null_resource.tailscale[0].triggers.tailscale_oauth_client_id_sha256 == nonsensitive(sha256(var.tailscale_oauth_client_id)) &&
+      null_resource.tailscale[0].triggers.tailscale_oauth_client_secret_sha256 == nonsensitive(sha256(var.tailscale_oauth_client_secret)) &&
       null_resource.liqo[0].triggers.cloudspace == "acceptance-cluster" &&
       null_resource.traefik[0].triggers.cloudspace == "acceptance-cluster" &&
       null_resource.cert_manager[0].triggers.cloudspace == "acceptance-cluster" &&
       null_resource.argocd[0].triggers.cloudspace == "acceptance-cluster" &&
+      null_resource.argocd[0].triggers.github_token_sha256 == nonsensitive(sha256(var.github_token)) &&
       null_resource.app_of_apps[0].triggers.cloudspace == "acceptance-cluster" &&
       null_resource.app_of_apps[0].triggers.repo_url == "https://github.com/jedarden/declarative-config" &&
       null_resource.app_of_apps[0].triggers.revision == "main" &&
@@ -132,6 +135,7 @@ run "plans_bootstrap_components_and_contracts" {
   assert {
     condition = alltrue([
       strcontains(file("${path.root}/scripts/install-tailscale-operator.sh"), "--set oauth.secretName=operator-oauth"),
+      strcontains(file("${path.root}/scripts/install-tailscale-operator.sh"), "kubectl rollout restart deployment/operator --namespace tailscale"),
       strcontains(file("${path.root}/scripts/install-tailscale-operator.sh"), "operatorConfig.defaultTags"),
       strcontains(file("${path.root}/scripts/install-tailscale-operator.sh"), "proxyConfig.defaultTags"),
       strcontains(file("${path.root}/bootstrap.tf"), "scripts/install-tailscale-operator.sh"),
@@ -162,6 +166,29 @@ run "plans_bootstrap_components_and_contracts" {
       strcontains(file("${path.root}/bootstrap.tf"), "depends_on = [null_resource.argocd]")
     ])
     error_message = "Bootstrap commands and explicit dependency edges must retain the Tailscale, Liqo, Traefik, cert-manager, and ArgoCD contracts."
+  }
+}
+
+run "rotated_credentials_change_bootstrap_fingerprints" {
+  command = plan
+
+  variables {
+    cloudspace_name               = "acceptance-cluster"
+    tailscale_oauth_client_id     = "rotated-tailscale-client"
+    tailscale_oauth_client_secret = "rotated-tailscale-secret"
+    github_token                  = "rotated-github-token"
+  }
+
+  assert {
+    condition = (
+      null_resource.tailscale[0].triggers.tailscale_oauth_client_id_sha256 == nonsensitive(sha256(var.tailscale_oauth_client_id)) &&
+      null_resource.tailscale[0].triggers.tailscale_oauth_client_secret_sha256 == nonsensitive(sha256(var.tailscale_oauth_client_secret)) &&
+      null_resource.argocd[0].triggers.github_token_sha256 == nonsensitive(sha256(var.github_token)) &&
+      null_resource.tailscale[0].triggers.tailscale_oauth_client_id_sha256 != nonsensitive(sha256("test-tailscale-client")) &&
+      null_resource.tailscale[0].triggers.tailscale_oauth_client_secret_sha256 != nonsensitive(sha256("test-tailscale-secret")) &&
+      null_resource.argocd[0].triggers.github_token_sha256 != nonsensitive(sha256("test-github-token"))
+    )
+    error_message = "Rotating Tailscale or GitHub credentials must change only the dependent bootstrap fingerprints and plan a reapplication."
   }
 }
 
