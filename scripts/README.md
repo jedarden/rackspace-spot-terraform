@@ -9,7 +9,11 @@ explicitly. Both forms check Terraform formatting and validation, all plan-only
 Terraform acceptance tests, the bootstrap and ArgoCD shell smoke tests, and the
 failure/retry/destroy lifecycle test. The Terraform tests run from a temporary
 copy without the S3 backend, and the lifecycle test uses a mocked Spot provider
-and stubbed Kubernetes tools; it does not create Rackspace resources.
+and stubbed Kubernetes tools; it does not create Rackspace resources. Terraform
+1.10 or later is required for native S3 state locking. If the default `terraform`
+command is older or missing, the script downloads HashiCorp Terraform 1.10.5 and
+verifies its SHA-256 checksum before using it. Set `TERRAFORM_BIN` to use a
+specific executable; an unsupported explicit version fails with an error.
 
 ## tf-apply.sh
 
