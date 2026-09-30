@@ -189,6 +189,8 @@ These outputs are consumed by the bootstrap process and Liqo peering configurati
 ## Documentation
 
 - `CLAUDE.md`: Project-specific instructions and constraints
+- `docs/optional-components.md`: Skip switches, bootstrap dependencies, valid
+  combinations, and rerun behavior
 - `docs/terraform-state.md`: Remote state backend architecture (ADR-001)
 - `docs/plan/plan.md`: Implementation planning and architecture decisions
 - `MIGRATION_STATUS.md`: Migration status and compatibility notes
