@@ -17,6 +17,11 @@ variable "cloudspace_name" {
 variable "region" {
   type    = string
   default = "us-east-iad-1"
+
+  validation {
+    condition     = can(regex("^us-[a-z]+-[a-z]{3}-[0-9]+$", var.region))
+    error_message = "region must use the Rackspace Spot format us-<area>-<location>-<number>, such as us-east-iad-1."
+  }
 }
 
 variable "kubernetes_version" {
@@ -30,18 +35,37 @@ variable "server_class" {
   type        = string
   default     = "gp.vs1.medium-iad"
   description = "Rackspace Spot server class. Use spotctl serverclasses list to see options. Default: gp.vs1.medium-iad (2 CPU, 3.75GB, $0.001/hr)."
+
+  validation {
+    condition = (
+      can(regex("^[a-z]{2}\\.[a-z0-9]+\\.[a-z0-9]+-[a-z]{3}$", var.server_class)) &&
+      try(regex("^[a-z]{2}\\.[a-z0-9]+\\.[a-z0-9]+-([a-z]{3})$", var.server_class)[0], "") ==
+      try(regex("^us-[a-z]+-([a-z]{3})-[0-9]+$", var.region)[0], "")
+    )
+    error_message = "server_class must use the Rackspace Spot class format and its location suffix must match region."
+  }
 }
 
 variable "node_count" {
   type        = number
   default     = 3
   description = "Desired number of spot worker nodes."
+
+  validation {
+    condition     = var.node_count >= 1 && floor(var.node_count) == var.node_count
+    error_message = "node_count must be a positive whole number."
+  }
 }
 
 variable "bid_price" {
   type        = number
   default     = 0.001
   description = "Bid price per hour. Minimum varies by server class (check spotctl). Default suits mh.vs1.large-iad."
+
+  validation {
+    condition     = var.bid_price > 0
+    error_message = "bid_price must be greater than zero; the minimum depends on the selected server class."
+  }
 }
 
 # --- Tailscale (mesh connectivity via OAuth) ---
