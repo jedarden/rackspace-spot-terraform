@@ -224,3 +224,83 @@ run "rejects_server_classes_for_a_different_region" {
 
   expect_failures = [var.server_class]
 }
+
+run "rejects_empty_spot_credentials" {
+  command = plan
+
+  variables {
+    rackspace_spot_token = ""
+  }
+
+  expect_failures = [var.rackspace_spot_token]
+}
+
+run "rejects_empty_tailscale_client_ids" {
+  command = plan
+
+  variables {
+    tailscale_oauth_client_id = ""
+  }
+
+  expect_failures = [var.tailscale_oauth_client_id]
+}
+
+run "rejects_empty_tailscale_client_secrets" {
+  command = plan
+
+  variables {
+    tailscale_oauth_client_secret = ""
+  }
+
+  expect_failures = [var.tailscale_oauth_client_secret]
+}
+
+run "rejects_empty_github_tokens" {
+  command = plan
+
+  variables {
+    github_token = ""
+  }
+
+  expect_failures = [var.github_token]
+}
+
+run "rejects_whitespace_only_credentials" {
+  command = plan
+
+  variables {
+    github_token = "   "
+  }
+
+  expect_failures = [var.github_token]
+}
+
+run "rejects_malformed_kubernetes_versions" {
+  command = plan
+
+  variables {
+    kubernetes_version = "v1.31"
+  }
+
+  expect_failures = [var.kubernetes_version]
+}
+
+run "rejects_cloudspace_names_outside_dns_label_rules" {
+  command = plan
+
+  variables {
+    cloudspace_name = "Bad_Cloudspace"
+  }
+
+  expect_failures = [var.cloudspace_name]
+}
+
+run "rejects_cloudspace_names_longer_than_63_characters" {
+  command = plan
+
+  variables {
+    cloudspace_name = "this-cloudspace-name-is-longer-than-the-maximum-dns-label-length-limit"
+  }
+
+  expect_failures = [var.cloudspace_name]
+}

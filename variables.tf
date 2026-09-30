@@ -2,6 +2,11 @@ variable "rackspace_spot_token" {
   type        = string
   sensitive   = true
   description = "Rackspace Spot API refresh token"
+
+  validation {
+    condition     = trimspace(var.rackspace_spot_token) != ""
+    error_message = "rackspace_spot_token must not be empty."
+  }
 }
 
 # --- Naming ---
@@ -10,6 +15,14 @@ variable "cloudspace_name" {
   type        = string
   default     = ""
   description = "Explicit cloudspace name. If empty, generates iad-<random-word>."
+
+  validation {
+    condition = (
+      var.cloudspace_name == "" ||
+      (length(var.cloudspace_name) <= 63 && can(regex("^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", var.cloudspace_name)))
+    )
+    error_message = "cloudspace_name must be empty for a generated name or a DNS label of at most 63 lowercase letters, digits, and hyphens, starting and ending with a letter or digit."
+  }
 }
 
 # --- Cluster ---
@@ -27,6 +40,11 @@ variable "region" {
 variable "kubernetes_version" {
   type    = string
   default = "1.31.1"
+
+  validation {
+    condition     = can(regex("^[1-9][0-9]*\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$", var.kubernetes_version))
+    error_message = "kubernetes_version must be a stable numeric major.minor.patch version, such as 1.31.1."
+  }
 }
 
 # --- Node Pool ---
@@ -74,12 +92,22 @@ variable "tailscale_oauth_client_id" {
   type        = string
   sensitive   = true
   description = "Tailscale OAuth client ID. Create at https://login.tailscale.com/admin/settings/oauth"
+
+  validation {
+    condition     = trimspace(var.tailscale_oauth_client_id) != ""
+    error_message = "tailscale_oauth_client_id must not be empty."
+  }
 }
 
 variable "tailscale_oauth_client_secret" {
   type        = string
   sensitive   = true
   description = "Tailscale OAuth client secret."
+
+  validation {
+    condition     = trimspace(var.tailscale_oauth_client_secret) != ""
+    error_message = "tailscale_oauth_client_secret must not be empty."
+  }
 }
 
 variable "tailscale_operator_version" {
@@ -157,6 +185,11 @@ variable "github_token" {
   type        = string
   sensitive   = true
   description = "GitHub PAT for ArgoCD to read jedarden/declarative-config."
+
+  validation {
+    condition     = trimspace(var.github_token) != ""
+    error_message = "github_token must not be empty."
+  }
 }
 
 variable "declarative_config_path" {

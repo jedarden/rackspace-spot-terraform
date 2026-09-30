@@ -62,6 +62,31 @@ Required variables are defined in `variables.tf`:
 | `skip_cert_manager` | Skip cert-manager installation | `false` |
 | `skip_argocd` | Skip ArgoCD installation | `false` |
 
+### Input validation errors
+
+Terraform checks these inputs while planning, before it sends resource requests
+to Rackspace Spot. Required credentials must be set and cannot be empty or
+whitespace-only. If a required credential is omitted entirely, Terraform
+reports that the required variable has no value.
+
+| Variable | Rejected input | Validation error |
+|----------|----------------|------------------|
+| `rackspace_spot_token` | Empty or whitespace-only | `rackspace_spot_token must not be empty.` |
+| `tailscale_oauth_client_id` | Empty or whitespace-only | `tailscale_oauth_client_id must not be empty.` |
+| `tailscale_oauth_client_secret` | Empty or whitespace-only | `tailscale_oauth_client_secret must not be empty.` |
+| `github_token` | Empty or whitespace-only | `github_token must not be empty.` |
+| `node_count` | Less than one or fractional | `node_count must be a positive whole number.` |
+| `bid_price` | Zero or negative | `bid_price must be greater than zero; the minimum depends on the selected server class.` |
+| `region` | Not in `us-<area>-<location>-<number>` form | `region must use the Rackspace Spot format us-<area>-<location>-<number>, such as us-east-iad-1.` |
+| `server_class` | Not in the Spot class form or its location suffix differs from `region` | `server_class must use the Rackspace Spot class format and its location suffix must match region.` |
+| `kubernetes_version` | Not a stable numeric `major.minor.patch` version | `kubernetes_version must be a stable numeric major.minor.patch version, such as 1.31.1.` |
+| `cloudspace_name` | Non-empty name is not a lowercase DNS label of at most 63 characters | `cloudspace_name must be empty for a generated name or a DNS label of at most 63 lowercase letters, digits, and hyphens, starting and ending with a letter or digit.` |
+
+An empty `cloudspace_name` requests the generated `iad-...` name. These checks
+validate local syntax and consistency; Rackspace Spot still determines whether
+a syntactically valid region, server class, Kubernetes release, and bid are
+currently available.
+
 ### Secrets (by name and source path)
 
 Never commit credential values. Store secrets in OpenBao at these paths:
