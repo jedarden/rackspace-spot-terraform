@@ -64,5 +64,5 @@ resource "spot_spotnodepool" "postgres" {
 
 output "estimated_hourly_cost" {
   value       = var.node_count * var.bid_price
-  description = "Estimated hourly cost based on the bid price, not necessarily the clearing price."
+  description = "Estimated general worker-pool cost in USD per hour at the configured bid price; excludes the separately configured Postgres pool and any clearing-price difference."
 }

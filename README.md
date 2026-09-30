@@ -176,15 +176,25 @@ Each managed cluster has its own configuration under `clusters/<name>/`:
 
 Each configuration uses the same module structure with cluster-specific `.tfvars` files.
 
-## Outputs
+## Terraform Output Contract
 
-The module outputs:
+The repository has two independent Terraform root configurations. The root
+configuration provisions the IAD cluster; `clusters/ord-devimprint` manages
+node pools for the existing Chicago cluster. Their complete output sets are:
 
-- **Kubeconfig**: Cluster access credentials (written to `/tmp/<cloudspace>.kubeconfig`)
-- **API Endpoint**: Kubernetes API server address
-- **Cluster ID**: Unique cluster identifier for Liqo peering
+| Configuration | Output | Terraform value format | Intended consumer | Sensitive |
+| --- | --- | --- | --- | --- |
+| Repository root | `cloudspace_name` | String containing the explicit or generated Rackspace Spot cloudspace name. | Provisioning automation and cluster inventory use it to identify the cluster. | No |
+| Repository root | `api_server` | String containing the Kubernetes API server URL from the Spot kubeconfig data source, normally an HTTPS URL. | Authorized clients and inventory consumers that need the API endpoint. Bootstrap reads the data source directly rather than consuming this output. | No |
+| Repository root | `kubeconfig` | String containing the raw serialized kubeconfig YAML, not a file path. | An authorized operator or automation that needs Kubernetes credentials. The bootstrap resources separately write the same provider value to `/tmp/<cloudspace>.kubeconfig` with mode `0600`. | **Yes** |
+| Repository root | `estimated_hourly_cost` | Number in USD per hour, calculated as `node_count * bid_price` for the configured worker pool. It is a bid-based estimate, not the clearing price. | Cost summaries and provisioning inventory. | No |
+| `clusters/ord-devimprint` | `estimated_hourly_cost` | Number in USD per hour, calculated as `node_count * bid_price` for the general worker pool. It excludes the separately configured Postgres pool and any clearing-price difference. | Cost summaries and inventory for the existing Chicago cluster's general worker pool. | No |
 
-These outputs are consumed by the bootstrap process and Liqo peering configuration.
+The kubeconfig is redacted in normal Terraform output, but Terraform still
+stores it in state. Treat access to the state as access to cluster credentials;
+avoid printing the value or writing it to logs. No Terraform output named
+`cluster_id` is defined: the peering provisioner queries the cluster ID from
+Kubernetes internally when it needs it.
 
 ## Documentation
 

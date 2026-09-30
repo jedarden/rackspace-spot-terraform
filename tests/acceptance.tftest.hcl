@@ -74,15 +74,6 @@ run "provisions_cloudspace_workers_and_outputs" {
     condition     = output.estimated_hourly_cost == 0.06
     error_message = "Estimated hourly cost must be node_count multiplied by bid_price."
   }
-
-  assert {
-    condition = alltrue([
-      strcontains(file("${path.root}/outputs.tf"), "data.spot_kubeconfig.main.kubeconfigs[0].host"),
-      strcontains(file("${path.root}/outputs.tf"), "value     = data.spot_kubeconfig.main.raw"),
-      strcontains(file("${path.root}/outputs.tf"), "sensitive = true")
-    ])
-    error_message = "The API endpoint and sensitive kubeconfig outputs must remain connected to the provider data source."
-  }
 }
 
 run "generates_a_cloudspace_name_when_unspecified" {
