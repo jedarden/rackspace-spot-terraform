@@ -4,12 +4,12 @@ This directory contains wrapper scripts for managing Terraform operations with O
 
 ## Definition of done
 
-Run `scripts/definition-of-done.sh --fast` from the repository root. It checks
-Terraform formatting and validation, all plan-only Terraform acceptance tests,
-the bootstrap and ArgoCD shell smoke tests, and the failure/retry/destroy
-lifecycle test. The Terraform tests run from a temporary copy without the S3
-backend, and the lifecycle test uses a mocked Spot provider and stubbed
-Kubernetes tools; it does not create Rackspace resources.
+Run `scripts/definition-of-done.sh` from the repository root, or pass `--fast`
+explicitly. Both forms check Terraform formatting and validation, all plan-only
+Terraform acceptance tests, the bootstrap and ArgoCD shell smoke tests, and the
+failure/retry/destroy lifecycle test. The Terraform tests run from a temporary
+copy without the S3 backend, and the lifecycle test uses a mocked Spot provider
+and stubbed Kubernetes tools; it does not create Rackspace resources.
 
 ## tf-apply.sh
 

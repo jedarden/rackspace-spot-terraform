@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "${1:-}" != "--fast" || $# -ne 1 ]]; then
-  echo "Usage: $0 --fast" >&2
+if [[ $# -gt 1 || ( $# -eq 1 && "$1" != "--fast" ) ]]; then
+  echo "Usage: $0 [--fast]" >&2
   exit 2
 fi
 
