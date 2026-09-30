@@ -12,8 +12,8 @@ This Terraform module creates and bootstraps Kubernetes clusters on Rackspace Sp
 - **Node Pool** (`spot_spotnodepool`): Spot worker nodes with configurable server class and bid pricing
 - **Tailscale Operator**: Mesh connectivity via OAuth client credentials
 - **Liqo**: Cluster federation with ardenone-hub (optional, for compute clusters)
-- **Traefik**: Ingress controller (ClusterIP only - never LoadBalancer)
-- **cert-manager**: TLS certificate automation
+- **Traefik**: Ingress controller with a ClusterIP Service (never LoadBalancer)
+- **cert-manager**: TLS certificate controller and CRDs; workloads define issuers and certificates
 - **ArgoCD**: GitOps controller with App-of-Apps bootstrap
 
 Clusters are disposable spot instances designed for cost-efficient batch workloads and horizontal scaling across the fleet.
@@ -203,6 +203,8 @@ Kubernetes internally when it needs it.
   skip behavior, and Liqo/Tailscale smoke-test contract
 - `docs/optional-components.md`: Skip switches, bootstrap dependencies, valid
   combinations, and rerun behavior
+- `docs/platform-contract.md`: Calico, Traefik exposure, cert-manager TLS, and
+  skip dependency contracts
 - `docs/argocd-bootstrap.md`: App-of-Apps source, credentials, sync policy,
   readiness criteria, and smoke check
 - `docs/terraform-state.md`: Remote state backend architecture (ADR-001)
