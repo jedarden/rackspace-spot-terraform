@@ -3,7 +3,8 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 terraform_bin="${TERRAFORM_BIN:-terraform}"
-temp_dir="$(mktemp -d "$repo_root/.lifecycle-smoke.XXXXXX")"
+lifecycle_root="${LIFECYCLE_SMOKE_ROOT:-$repo_root}"
+temp_dir="$(mktemp -d "$lifecycle_root/.l.XXXX")"
 cleanup() {
   local exit_code=$?
   if (( exit_code == 0 )); then
@@ -89,7 +90,8 @@ STUB
 
 chmod +x "$temp_dir/bin/kubectl" "$temp_dir/bin/helm" "$temp_dir/bin/liqoctl"
 export PATH="$temp_dir/bin:$PATH"
-export TMPDIR="$temp_dir/tmp"
+export TMPDIR="${LIFECYCLE_SMOKE_TMPDIR:-$temp_dir}"
+mkdir -p "$TMPDIR"
 export COMMAND_LOG="$temp_dir/commands.log"
 export FAIL_MARKER="$temp_dir/bootstrap-failed-once"
 export TF_DATA_DIR="$temp_dir/tfdata"

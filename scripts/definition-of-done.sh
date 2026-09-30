@@ -8,7 +8,10 @@ fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 terraform_bin="${TERRAFORM_BIN:-terraform}"
-temp_dir="$(mktemp -d "$repo_root/.definition-of-done.XXXXXX")"
+# Keep this path short: Terraform provider RPC uses a Unix-domain socket whose
+# path limit is small, and the verifier may already run from a long extraction
+# path in the build circuit.
+temp_dir="$(mktemp -d "$repo_root/.d.XXXX")"
 cleanup() {
   local exit_code=$?
   if (( exit_code == 0 )); then
@@ -88,6 +91,8 @@ export TF_DATA_DIR="$temp_dir/tfdata"
 
 bash "$repo_root/tests/integration-smoke.sh"
 bash "$repo_root/tests/argocd-bootstrap-smoke.sh"
-TERRAFORM_BIN="$terraform_bin" bash "$repo_root/tests/lifecycle-smoke.sh"
+LIFECYCLE_SMOKE_ROOT="$temp_dir" \
+LIFECYCLE_SMOKE_TMPDIR="$temp_dir" \
+  TERRAFORM_BIN="$terraform_bin" bash "$repo_root/tests/lifecycle-smoke.sh"
 
 echo 'PASS: Terraform formatting, validation, plan acceptance, script smoke, and lifecycle cleanup checks'
