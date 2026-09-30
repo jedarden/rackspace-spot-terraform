@@ -127,7 +127,12 @@ run "plans_bootstrap_components_and_contracts" {
 
   assert {
     condition = alltrue([
-      strcontains(file("${path.root}/bootstrap.tf"), "--set oauth.secretName=operator-oauth"),
+      strcontains(file("${path.root}/scripts/install-tailscale-operator.sh"), "--set oauth.secretName=operator-oauth"),
+      strcontains(file("${path.root}/scripts/install-tailscale-operator.sh"), "operatorConfig.defaultTags"),
+      strcontains(file("${path.root}/scripts/install-tailscale-operator.sh"), "proxyConfig.defaultTags"),
+      strcontains(file("${path.root}/bootstrap.tf"), "scripts/install-tailscale-operator.sh"),
+      strcontains(file("${path.root}/peering.tf"), "scripts/liqo-peer.sh"),
+      strcontains(file("${path.root}/peering.tf"), "when = destroy"),
       strcontains(file("${path.root}/bootstrap.tf"), "liqo/liqo"),
       strcontains(file("${path.root}/bootstrap.tf"), "gateway.service.type=NodePort"),
       strcontains(file("${path.root}/bootstrap.tf"), "traefik/traefik"),

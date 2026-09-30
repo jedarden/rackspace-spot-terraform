@@ -98,7 +98,7 @@ variable "liqo_version" {
 variable "skip_liqo" {
   type        = bool
   default     = false
-  description = "Skip Liqo installation and peering. Use for standalone clusters that don't federate resources with ardenone-hub."
+  description = "Skip Liqo installation and peering. Use for management or standalone clusters; removing an existing peering runs liqoctl unpeer but leaves the Helm release installed."
 }
 
 variable "skip_traefik" {

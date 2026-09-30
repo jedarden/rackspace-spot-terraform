@@ -64,7 +64,11 @@ permissions are intentionally unavailable.
   If the switch is later changed back to `false`, Terraform recreates the
   resource and its `helm upgrade --install` command safely reconciles the
   release.
-- `skip_liqo` also suppresses peering, so enabling it prevents new peering
-  attempts. It does not automatically unpeer a cluster that was previously
-  peered; handle that operational cleanup separately.
-
+- `skip_liqo` removes both the Liqo install resource and peering resource. If
+  peering was enabled previously, removing `null_resource.liqo_peer` runs its
+  destroy provisioner and attempts `liqoctl unpeer`. The Liqo Helm release
+  remains installed because its resource has no uninstall destroy action.
+  The teardown needs the selected hub kubeconfig, Spot kubeconfig, and
+  `liqoctl` on the Terraform runner. See
+  [the Liqo and Tailscale contract](liqo-tailscale-contract.md) for context
+  selection, permissions, and retry behavior.

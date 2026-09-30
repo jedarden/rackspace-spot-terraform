@@ -199,6 +199,8 @@ Kubernetes internally when it needs it.
 ## Documentation
 
 - `CLAUDE.md`: Project-specific instructions and constraints
+- `docs/liqo-tailscale-contract.md`: Hub discovery, credentials, compute role,
+  skip behavior, and Liqo/Tailscale smoke-test contract
 - `docs/optional-components.md`: Skip switches, bootstrap dependencies, valid
   combinations, and rerun behavior
 - `docs/terraform-state.md`: Remote state backend architecture (ADR-001)

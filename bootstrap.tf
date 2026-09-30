@@ -70,30 +70,13 @@ resource "null_resource" "tailscale" {
 
   provisioner "local-exec" {
     environment = {
-      KUBECONFIG = local_sensitive_file.spot_kubeconfig.filename
+      KUBECONFIG                    = local_sensitive_file.spot_kubeconfig.filename
+      TAILSCALE_OAUTH_CLIENT_ID     = var.tailscale_oauth_client_id
+      TAILSCALE_OAUTH_CLIENT_SECRET = var.tailscale_oauth_client_secret
+      TAILSCALE_OPERATOR_VERSION    = var.tailscale_operator_version
+      CLOUDSPACE_NAME               = local.cloudspace_name
     }
-    command = <<-EOT
-      set -euo pipefail
-      export PATH="/tmp:$PATH"
-
-      kubectl create namespace tailscale --dry-run=client -o yaml | kubectl apply -f -
-
-      kubectl create secret generic operator-oauth \
-        --namespace tailscale \
-        --from-literal=client_id="${var.tailscale_oauth_client_id}" \
-        --from-literal=client_secret="${var.tailscale_oauth_client_secret}" \
-        --dry-run=client -o yaml | kubectl apply -f -
-
-      helm repo add tailscale https://pkgs.tailscale.com/helmcharts
-      helm upgrade --install tailscale-operator tailscale/tailscale-operator \
-        --namespace tailscale \
-        --version "${var.tailscale_operator_version}" \
-        --timeout 15m \
-        --set installCRDs=true \
-        --set oauth.secretName=operator-oauth \
-        --set "operatorConfig.hostname=${local.cloudspace_name}" \
-        --set-json 'defaultTags=["tag:k8s-operator","tag:k8s","tag:spot"]'
-    EOT
+    command = "bash \"${path.module}/scripts/install-tailscale-operator.sh\""
   }
 
   depends_on = [null_resource.install_tools]
