@@ -91,8 +91,9 @@ export TF_DATA_DIR="$temp_dir/tfdata"
 
 bash "$repo_root/tests/integration-smoke.sh"
 bash "$repo_root/tests/argocd-bootstrap-smoke.sh"
+bash "$repo_root/tests/cluster-apply-smoke.sh"
 LIFECYCLE_SMOKE_ROOT="$temp_dir" \
 LIFECYCLE_SMOKE_TMPDIR="$temp_dir" \
   TERRAFORM_BIN="$terraform_bin" bash "$repo_root/tests/lifecycle-smoke.sh"
 
-echo 'PASS: Terraform formatting, validation, plan acceptance, script smoke, and lifecycle cleanup checks'
+echo 'PASS: Terraform formatting, validation, plan acceptance, wrapper smoke, and lifecycle cleanup checks'

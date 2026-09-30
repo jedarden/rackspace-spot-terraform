@@ -20,6 +20,7 @@
 # (The Spot token key was `rackspace_spot_token` before 2026-08-29; still read as a fallback.)
 
 set -euo pipefail
+set +x
 
 # OpenBao configuration
 OPENBAO_ADDR="${OPENBAO_ADDR:-http://traefik-rs-manager:8200}"
@@ -28,7 +29,7 @@ export OPENBAO_ADDR
 # Check for BAO_TOKEN
 if [[ -z "${BAO_TOKEN:-}" ]]; then
   echo "Error: BAO_TOKEN environment variable not set" >&2
-  echo "Please set it with: export BAO_TOKEN=hvs.your-token-here" >&2
+  echo "Load BAO_TOKEN from the approved secret source without placing its value in command arguments" >&2
   exit 1
 fi
 
@@ -47,11 +48,14 @@ SECRETS_JSON=$(bao kv get -format=json "${SECRET_PATH}" 2>/dev/null || {
   exit 1
 })
 
-# Extract individual secrets and export as TF_VAR_*
-export TF_VAR_rackspace_spot_token=$(echo "${SECRETS_JSON}" | jq -r '.data.data.token // .data.data.rackspace_spot_token // empty')
-export TF_VAR_tailscale_oauth_client_id=$(echo "${SECRETS_JSON}" | jq -r '.data.data.tailscale_oauth_client_id // empty')
-export TF_VAR_tailscale_oauth_client_secret=$(echo "${SECRETS_JSON}" | jq -r '.data.data.tailscale_oauth_client_secret // empty')
-export TF_VAR_github_token=$(echo "${SECRETS_JSON}" | jq -r '.data.data.github_token // empty')
+# Extract individual secrets without printing them or placing them in argv.
+TF_VAR_rackspace_spot_token="$(printf '%s' "$SECRETS_JSON" | jq -r '.data.data.token // .data.data.rackspace_spot_token // empty')"
+TF_VAR_tailscale_oauth_client_id="$(printf '%s' "$SECRETS_JSON" | jq -r '.data.data.tailscale_oauth_client_id // empty')"
+TF_VAR_tailscale_oauth_client_secret="$(printf '%s' "$SECRETS_JSON" | jq -r '.data.data.tailscale_oauth_client_secret // empty')"
+TF_VAR_github_token="$(printf '%s' "$SECRETS_JSON" | jq -r '.data.data.github_token // empty')"
+export TF_VAR_rackspace_spot_token TF_VAR_tailscale_oauth_client_id
+export TF_VAR_tailscale_oauth_client_secret TF_VAR_github_token
+unset SECRETS_JSON
 
 # Verify all required secrets are present
 REQUIRED_SECRETS=(
@@ -77,6 +81,10 @@ fi
 
 echo "✓ All secrets fetched successfully"
 
-# Run terraform with any passed arguments
-echo "Running: terraform $*"
-exec terraform "$@"
+# OpenBao authentication is no longer needed by Terraform. Do not print the
+# Terraform arguments: callers may include values that should stay private.
+unset BAO_TOKEN
+unset OPENBAO_ADDR TF_SECRET_PATH
+unset TF_LOG TF_LOG_PATH TF_LOG_CORE TF_LOG_PROVIDER
+terraform_bin="${TERRAFORM_BIN:-terraform}"
+exec "$terraform_bin" "$@"

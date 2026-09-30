@@ -6,14 +6,16 @@ This directory contains wrapper scripts for managing Terraform operations with O
 
 Run `scripts/definition-of-done.sh` from the repository root, or pass `--fast`
 explicitly. Both forms check Terraform formatting and validation, all plan-only
-Terraform acceptance tests, the bootstrap and ArgoCD shell smoke tests, and the
-failure/retry/destroy lifecycle test. The Terraform tests run from a temporary
-copy without the S3 backend, and the lifecycle test uses a mocked Spot provider
-and stubbed Kubernetes tools; it does not create Rackspace resources. Terraform
-1.10 or later is required for native S3 state locking. If the default `terraform`
-command is older or missing, the script downloads HashiCorp Terraform 1.10.5 and
-verifies its SHA-256 checksum before using it. Set `TERRAFORM_BIN` to use a
-specific executable; an unsupported explicit version fails with an error.
+Terraform acceptance tests, the bootstrap, ArgoCD, and cluster-apply shell
+smoke tests, and the failure/retry/destroy lifecycle test. The Terraform tests
+run from a temporary copy without the S3 backend. The lifecycle test uses a
+mocked Spot provider and stubbed Kubernetes tools; it does not create
+Rackspace resources. Terraform
+1.10 or later is required for native S3 state locking. If the default
+`terraform` command is older or missing, the script downloads HashiCorp
+Terraform 1.10.5 and verifies its SHA-256 checksum before using it. Set
+`TERRAFORM_BIN` to use a specific executable; an unsupported explicit version
+fails with an error.
 
 ## tf-apply.sh
 
@@ -52,8 +54,10 @@ read as if the secret were per-cluster. It is not; the Spot token is per org.
 ### Usage
 
 ```bash
-# Set your OpenBao token
-export BAO_TOKEN=hvs.your-token-here
+# Read your OpenBao token without echoing it or putting it in command history.
+read -r -s -p 'OpenBao token: ' BAO_TOKEN
+printf '\n'
+export BAO_TOKEN
 
 # Run terraform apply (secrets are fetched automatically from OpenBao)
 ./scripts/tf-apply.sh apply
@@ -82,6 +86,51 @@ The script will fail if:
 - OpenBao is unreachable at `http://traefik-rs-manager:8200`
 - Any required secret is missing from OpenBao
 
+## tf-cluster.sh
+
+Use this wrapper for independent Terraform roots under `clusters/`. It checks
+that `clusters/<name>/backend.tf` selects `state/<name>/terraform.tfstate`,
+runs backend initialization before loading provider credentials, and then
+delegates plans and applies to `tf-apply.sh`.
+
+```bash
+# Backend credentials must be available as AWS_ACCESS_KEY_ID and
+# AWS_SECRET_ACCESS_KEY, or through the configured AWS profile.
+
+# Initialize only the backend; this does not fetch provider secrets.
+./scripts/tf-cluster.sh ord-devimprint init
+
+# Read the OpenBao token without echoing it or putting it in command history.
+read -r -s -p 'OpenBao token: ' BAO_TOKEN
+printf '\n'
+export BAO_TOKEN
+
+# Plan and apply with OpenBao credentials loaded automatically.
+./scripts/tf-cluster.sh ord-devimprint plan
+./scripts/tf-cluster.sh ord-devimprint apply
+
+# Non-sensitive variable overrides may be provided with Terraform options.
+./scripts/tf-cluster.sh ord-devimprint plan -var=node_count=8
+```
+
+Plan and apply always use `-input=false` and `-lock-timeout=5m`. Apply keeps
+Terraform's interactive approval prompt. The wrapper rejects automatic
+approval, disabled locking, custom lock timeouts, saved or JSON plan output,
+saved-plan application, alternate local state paths, variable files, and
+credential variables passed with `-var`. Set non-sensitive overrides through
+`TF_VAR_*` or `-var`; credentials must come from OpenBao. The OpenBao token is
+removed from the environment before
+Terraform runs, and the wrapper does not print Terraform arguments. Terraform
+state still contains sensitive values and must be protected like the source
+credentials. The wrapper uses the root's `.terraform.lock.hcl` in read-only
+mode, selects the default workspace, and ignores ambient Terraform CLI override
+and debug-logging environment variables.
+
+The wrapper never migrates local state. If a cluster has existing local state,
+use the review and backup procedure in `docs/terraform-state.md`; do not accept
+an unexpected backend migration prompt. That document's Garage compatibility
+blocker applies to cluster operations too.
+
 ## seed-openbao.sh
 
 One-time migration script to move secrets from `rs-manager.tfvars` (plaintext, gitignored) into OpenBao.
@@ -89,8 +138,10 @@ One-time migration script to move secrets from `rs-manager.tfvars` (plaintext, g
 ### Usage
 
 ```bash
-# Set your OpenBao token
-export BAO_TOKEN=hvs.your-token-here
+# Read your OpenBao token without echoing it or putting it in command history.
+read -r -s -p 'OpenBao token: ' BAO_TOKEN
+printf '\n'
+export BAO_TOKEN
 
 # Run the seed script
 ./scripts/seed-openbao.sh

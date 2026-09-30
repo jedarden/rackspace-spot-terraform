@@ -34,7 +34,8 @@ rackspace-spot-terraform/
 ├── clusters/           # Per-cluster Terraform configurations
 │   └── ord-devimprint/
 ├── scripts/           # Wrapper scripts for Terraform operations
-│   ├── tf-apply.sh    # OpenBao-aware apply wrapper
+│   ├── tf-apply.sh    # OpenBao-aware root apply wrapper
+│   ├── tf-cluster.sh  # Per-cluster backend and apply wrapper
 │   └── seed-openbao.sh # Secret migration script
 └── docs/              # Design documentation and ADRs
 ```
@@ -105,7 +106,10 @@ The Spot token is **organization-level**, not per-cloudspace - the same token pr
 One-time secret migration from local tfvars to OpenBao:
 
 ```bash
-export BAO_TOKEN=hvs.your-token-here
+# Read your OpenBao token without echoing it or putting it in command history.
+read -r -s -p 'OpenBao token: ' BAO_TOKEN
+printf '\n'
+export BAO_TOKEN
 ./scripts/seed-openbao.sh
 ```
 
@@ -122,11 +126,13 @@ This writes credentials to OpenBao via stdin only - values never appear in argv,
 
 ### Manual Execution
 
-Use the OpenBao-aware wrapper script for all operations:
+For the repository-root Terraform configuration, use the OpenBao-aware wrapper:
 
 ```bash
-# Set your OpenBao token
-export BAO_TOKEN=hvs.your-token-here
+# Read your OpenBao token without echoing it or putting it in command history.
+read -r -s -p 'OpenBao token: ' BAO_TOKEN
+printf '\n'
+export BAO_TOKEN
 
 # Plan changes
 ./scripts/tf-apply.sh plan
@@ -141,7 +147,36 @@ export BAO_TOKEN=hvs.your-token-here
 ./scripts/tf-apply.sh apply -lock-timeout=5m
 ```
 
-The wrapper fetches secrets from OpenBao and exports them as `TF_VAR_*` environment variables before invoking Terraform.
+The wrapper fetches secrets from OpenBao and exports them as `TF_VAR_*` environment variables before invoking Terraform. It does not initialize a backend; see [Remote Terraform state](docs/terraform-state.md) for root initialization and migration.
+
+For a configuration under `clusters/<name>/`, use the cluster wrapper so
+initialization runs in that root and its backend key is checked before any
+operation:
+
+```bash
+# Backend-only initialization; no provider secrets are loaded.
+./scripts/tf-cluster.sh ord-devimprint init
+
+# Read the OpenBao token without echoing it or putting it in command history.
+read -r -s -p 'OpenBao token: ' BAO_TOKEN
+printf '\n'
+export BAO_TOKEN
+
+# Plan and interactively approve applies.
+./scripts/tf-cluster.sh ord-devimprint plan
+./scripts/tf-cluster.sh ord-devimprint apply
+```
+
+Cluster plan/apply uses a five-minute state lock timeout and loads credentials
+from OpenBao only after backend initialization. The wrapper rejects
+auto-approval, disabled locking, saved-plan application/output, JSON plan
+output, alternate local state paths, variable files, and credential values
+passed on the command line. Do not run the cluster workflow while the Garage
+compatibility blocker in [`docs/terraform-state.md`](docs/terraform-state.md)
+remains in effect.
+
+It also requires the cluster provider lockfile, uses the default workspace,
+and ignores ambient Terraform CLI overrides and debug-logging variables.
 
 ### CI via Argo Workflows
 

@@ -82,7 +82,27 @@ terraform -chdir=clusters/ord-devimprint init -input=false -migrate-state
 terraform -chdir=clusters/ord-devimprint plan -input=false -detailed-exitcode
 ```
 
-After initialization, use `-lock-timeout=5m` for normal plans and applies so a
-briefly-held lock is retried rather than treated as an immediate failure. The
-existing `scripts/tf-apply.sh` wrapper can continue to be used for root-module
-operations once the backend has been initialized.
+For the cluster root, use `scripts/tf-cluster.sh ord-devimprint init` to
+initialize its configured backend. The wrapper checks that the backend key is
+exactly `state/ord-devimprint/terraform.tfstate`. Each `plan` or `apply` call
+also runs `terraform init -input=false` first, then fetches provider secrets
+from OpenBao and uses `-lock-timeout=5m`. Apply keeps Terraform's interactive
+approval prompt. The wrapper does not migrate local state; use the reviewed,
+backed-up migration procedure above if the cluster still has local state.
+
+For example, after the backend compatibility blocker is resolved and the
+cluster backend is ready:
+
+```bash
+./scripts/tf-cluster.sh ord-devimprint plan
+./scripts/tf-cluster.sh ord-devimprint apply
+```
+
+The wrapper does not accept saved or JSON plan output, saved-plan application,
+automatic approval, or disabled state locking. Terraform state can still
+contain sensitive values and must be protected like the source credentials.
+It reads the cluster's provider lockfile without updating it, selects the
+default workspace, and ignores ambient Terraform CLI override and debug-logging
+environment variables.
+The existing `scripts/tf-apply.sh` remains the secret-loading wrapper for
+root-module operations.

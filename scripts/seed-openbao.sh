@@ -24,7 +24,7 @@ export OPENBAO_ADDR
 # Check for BAO_TOKEN
 if [[ -z "${BAO_TOKEN:-}" ]]; then
   echo "Error: BAO_TOKEN environment variable not set" >&2
-  echo "Please set it with: export BAO_TOKEN=hvs.your-token-here" >&2
+  echo "Load BAO_TOKEN from the approved secret source without placing its value in command arguments" >&2
   exit 1
 fi
 
