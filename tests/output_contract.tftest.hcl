@@ -58,7 +58,7 @@ run "publishes_the_complete_root_output_contract" {
 
   assert {
     condition = alltrue([
-      can(regex("(?s)output\\s+\"api_server\"\\s*\\{[^}]*value\\s*=\\s*data\\.spot_kubeconfig\\.main\\.kubeconfigs\\[0\\]\\.host", file("${path.root}/outputs.tf"))),
+      can(regex("(?s)output\\s+\"api_server\"\\s*\\{[^}]*value\\s*=\\s*try\\(data\\.spot_kubeconfig\\.main\\.kubeconfigs\\[0\\]\\.host,\\s*null\\)", file("${path.root}/outputs.tf"))),
       can(regex("(?s)output\\s+\"kubeconfig\"\\s*\\{[^}]*value\\s*=\\s*data\\.spot_kubeconfig\\.main\\.raw[^}]*sensitive\\s*=\\s*true", file("${path.root}/outputs.tf"))),
       !can(regex("(?s)output\\s+\"cloudspace_name\"\\s*\\{[^}]*sensitive\\s*=\\s*true", file("${path.root}/outputs.tf"))),
       !can(regex("(?s)output\\s+\"api_server\"\\s*\\{[^}]*sensitive\\s*=\\s*true", file("${path.root}/outputs.tf"))),

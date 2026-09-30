@@ -4,8 +4,8 @@ output "cloudspace_name" {
 }
 
 output "api_server" {
-  value       = data.spot_kubeconfig.main.kubeconfigs[0].host
-  description = "Kubernetes API server URL for authorized cluster clients and inventory consumers."
+  value       = try(data.spot_kubeconfig.main.kubeconfigs[0].host, null)
+  description = "Kubernetes API server URL for authorized clients; null until Spot returns a kubeconfig endpoint."
 }
 
 output "kubeconfig" {

@@ -2,6 +2,15 @@
 
 This directory contains wrapper scripts for managing Terraform operations with OpenBao secret integration.
 
+## Definition of done
+
+Run `scripts/definition-of-done.sh --fast` from the repository root. It checks
+Terraform formatting and validation, all plan-only Terraform acceptance tests,
+the bootstrap and ArgoCD shell smoke tests, and the failure/retry/destroy
+lifecycle test. The Terraform tests run from a temporary copy without the S3
+backend, and the lifecycle test uses a mocked Spot provider and stubbed
+Kubernetes tools; it does not create Rackspace resources.
+
 ## tf-apply.sh
 
 Wrapper script for `terraform apply` that fetches sensitive variables from OpenBao instead of reading them from a local plaintext tfvars file.
