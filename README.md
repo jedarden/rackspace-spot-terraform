@@ -203,6 +203,8 @@ Kubernetes internally when it needs it.
   skip behavior, and Liqo/Tailscale smoke-test contract
 - `docs/optional-components.md`: Skip switches, bootstrap dependencies, valid
   combinations, and rerun behavior
+- `docs/argocd-bootstrap.md`: App-of-Apps source, credentials, sync policy,
+  readiness criteria, and smoke check
 - `docs/terraform-state.md`: Remote state backend architecture (ADR-001)
 - `docs/plan/plan.md`: Implementation planning and architecture decisions
 - `MIGRATION_STATUS.md`: Migration status and compatibility notes

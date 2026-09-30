@@ -5,6 +5,13 @@
 #
 # Order: tools -> Tailscale (mesh) -> Liqo (federation) -> Traefik (ingress) -> cert-manager (TLS) -> ArgoCD -> App-of-Apps
 
+locals {
+  # ArgoCD reads the read-only GitHub mirror; changes are committed to Forgejo.
+  declarative_config_repo_url     = "https://github.com/jedarden/declarative-config"
+  declarative_config_revision     = "main"
+  declarative_config_include_glob = "*-application.yml"
+}
+
 # Write spot kubeconfig to file for bootstrap and peering.
 resource "local_sensitive_file" "spot_kubeconfig" {
   content         = data.spot_kubeconfig.main.raw
@@ -231,7 +238,10 @@ resource "null_resource" "app_of_apps" {
   count = var.skip_bootstrap || var.skip_argocd ? 0 : 1
   triggers = {
     cloudspace = local.cloudspace_name
+    repo_url   = local.declarative_config_repo_url
+    revision   = local.declarative_config_revision
     path       = var.declarative_config_path
+    include    = local.declarative_config_include_glob
   }
 
   provisioner "local-exec" {
@@ -251,12 +261,12 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/jedarden/declarative-config
-    targetRevision: HEAD
+    repoURL: ${local.declarative_config_repo_url}
+    targetRevision: ${local.declarative_config_revision}
     path: k8s/${var.declarative_config_path}
     directory:
       recurse: false
-      include: '*-application.yml'
+      include: '${local.declarative_config_include_glob}'
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

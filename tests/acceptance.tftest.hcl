@@ -120,7 +120,11 @@ run "plans_bootstrap_components_and_contracts" {
       null_resource.traefik[0].triggers.cloudspace == "acceptance-cluster" &&
       null_resource.cert_manager[0].triggers.cloudspace == "acceptance-cluster" &&
       null_resource.argocd[0].triggers.cloudspace == "acceptance-cluster" &&
-      null_resource.app_of_apps[0].triggers.cloudspace == "acceptance-cluster"
+      null_resource.app_of_apps[0].triggers.cloudspace == "acceptance-cluster" &&
+      null_resource.app_of_apps[0].triggers.repo_url == "https://github.com/jedarden/declarative-config" &&
+      null_resource.app_of_apps[0].triggers.revision == "main" &&
+      null_resource.app_of_apps[0].triggers.path == "rs-manager" &&
+      null_resource.app_of_apps[0].triggers.include == "*-application.yml"
     )
     error_message = "Bootstrap components must be scoped to the requested cloudspace."
   }
@@ -142,6 +146,14 @@ run "plans_bootstrap_components_and_contracts" {
       strcontains(file("${path.root}/bootstrap.tf"), "argo/argo-cd"),
       strcontains(file("${path.root}/bootstrap.tf"), "--wait"),
       strcontains(file("${path.root}/bootstrap.tf"), "kind: Application"),
+      strcontains(file("${path.root}/bootstrap.tf"), "repoURL: $${local.declarative_config_repo_url}"),
+      strcontains(file("${path.root}/bootstrap.tf"), "targetRevision: $${local.declarative_config_revision}"),
+      strcontains(file("${path.root}/bootstrap.tf"), "path: k8s/$${var.declarative_config_path}"),
+      strcontains(file("${path.root}/bootstrap.tf"), "include: '$${local.declarative_config_include_glob}'"),
+      strcontains(file("${path.root}/bootstrap.tf"), "automated:"),
+      strcontains(file("${path.root}/bootstrap.tf"), "prune: true"),
+      strcontains(file("${path.root}/bootstrap.tf"), "selfHeal: true"),
+      strcontains(file("${path.root}/bootstrap.tf"), "CreateNamespace=true"),
       strcontains(file("${path.root}/bootstrap.tf"), "depends_on      = [spot_spotnodepool.workers]"),
       strcontains(file("${path.root}/bootstrap.tf"), "depends_on = [local_sensitive_file.spot_kubeconfig]"),
       strcontains(file("${path.root}/bootstrap.tf"), "depends_on = [null_resource.install_tools]"),
